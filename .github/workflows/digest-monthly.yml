@@ -1,0 +1,40 @@
+name: Monthly digest → Matters draft (頻道精選)
+
+on:
+  schedule:
+    # 1st of each month, 02:00 UTC = 10:00 Hong Kong time (UTC+8).
+    # (cron day-of-month is evaluated in UTC.)
+    - cron: "0 2 1 * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (compose only, don't create the draft)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Compose monthly digest draft
+        env:
+          # Dedicated newsletter account — add these two repo secrets.
+          MATTERS_EMAIL: ${{ secrets.DIGEST_MATTERS_EMAIL }}
+          MATTERS_PASSWORD: ${{ secrets.DIGEST_MATTERS_PASSWORD }}
+        run: |
+          ARGS="--type monthly"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          python -m bot.digest $ARGS

@@ -1,0 +1,41 @@
+name: Weekly digest → Matters draft (一周熱門)
+
+on:
+  schedule:
+    # Monday 06:00 Hong Kong time (UTC+8) = Sunday 22:00 UTC.
+    # Off-peak UTC minute reduces GHA scheduler delay.
+    - cron: "0 22 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (compose only, don't create the draft)"
+        required: false
+        default: "false"
+
+# Digest only creates a draft; it commits nothing back, so no write perms needed.
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Compose weekly digest draft
+        env:
+          # Dedicated newsletter account — add these two repo secrets.
+          MATTERS_EMAIL: ${{ secrets.DIGEST_MATTERS_EMAIL }}
+          MATTERS_PASSWORD: ${{ secrets.DIGEST_MATTERS_PASSWORD }}
+        run: |
+          ARGS="--type weekly"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          python -m bot.digest $ARGS
