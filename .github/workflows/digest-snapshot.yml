@@ -1,18 +1,16 @@
-name: Monthly digest → Matters draft (頻道精選)
+name: Daily pin snapshot (累積頻道精選)
+
+# Records each channel's currently-pinned articles into state/channel_pins.json
+# every day. Matters' API exposes only the *current* pin (no history), so this
+# daily accumulation is how the monthly digest can list every article pinned
+# during the month — including ones already rotated out.
 
 on:
   schedule:
-    # 1st of each month, 02:00 UTC = 10:00 Hong Kong time (UTC+8).
-    # (cron day-of-month is evaluated in UTC.)
-    - cron: "0 2 1 * *"
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Dry run (compose only, don't create the draft)"
-        required: false
-        default: "false"
+    # Every day 23:00 UTC = 07:00 Hong Kong time.
+    - cron: "0 23 * * *"
+  workflow_dispatch: {}
 
-# Folds today's pins into the accumulated state and commits it back.
 permissions:
   contents: write
 
@@ -20,7 +18,7 @@ env:
   STATE_FILE: state/channel_pins.json
 
 jobs:
-  digest:
+  snapshot:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -33,15 +31,8 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Compose monthly digest draft
-        env:
-          # Dedicated newsletter account — add these two repo secrets.
-          MATTERS_EMAIL: ${{ secrets.DIGEST_MATTERS_EMAIL }}
-          MATTERS_PASSWORD: ${{ secrets.DIGEST_MATTERS_PASSWORD }}
-        run: |
-          ARGS="--type monthly --state $STATE_FILE"
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
-          python -m bot.digest $ARGS
+      - name: Snapshot today's channel pins
+        run: python -m bot.digest --type snapshot --state "$STATE_FILE"
 
       - name: Commit updated pin state
         run: |
@@ -51,7 +42,7 @@ jobs:
           fi
           git config user.name "newsletter-bot"
           git config user.email "newsletter-bot@users.noreply.github.com"
-          git commit -m "chore: monthly pin state ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+          git commit -m "chore: pin snapshot ($(date -u +'%Y-%m-%d %H:%M UTC'))"
           for attempt in 1 2 3; do
             if git push; then echo "pushed on attempt $attempt"; exit 0; fi
             echo "push attempt $attempt rejected; rebasing"
