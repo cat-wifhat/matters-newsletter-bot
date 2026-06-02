@@ -41,6 +41,37 @@ set -a; source .env; set +a
 python -m bot.digest --type weekly
 ```
 
+## 測試環境（matters.icu）
+
+Matters 有一個獨立的測試站 **matters.icu**，資料庫與帳戶都與正式站分開。
+在測試環境試跑，**完全不會碰到正式站**。
+
+切換只需設兩個環境變數（不改程式碼）：
+
+| | 正式站（預設） | 測試站 |
+|---|---|---|
+| `MATTERS_GRAPHQL_ENDPOINT` | `https://server.matters.news/graphql` | `https://server.matters.icu/graphql` |
+| `MATTERS_SITE` | `https://matters.town` | `https://matters.icu` |
+
+```bash
+# 在測試站 dry-run（只組稿、不發）
+MATTERS_GRAPHQL_ENDPOINT=https://server.matters.icu/graphql \
+MATTERS_SITE=https://matters.icu \
+python -m bot.digest --type weekly --dry-run
+
+# 在測試站真的開草稿（需先在 matters.icu 註冊一個測試帳戶，並設 MATTERS_EMAIL/PASSWORD）
+MATTERS_GRAPHQL_ENDPOINT=https://server.matters.icu/graphql \
+MATTERS_SITE=https://matters.icu \
+python -m bot.digest --type weekly
+```
+
+注意：
+- 測試站的帳戶與正式站**不共用**，必須在 matters.icu 另外註冊。
+- 測試站內容稀疏（熱門文常常是 0 篇、頻道是測試資料），所以草稿可能近乎空白——
+  這是正常的；測試目的是驗證「能連上、能登入、能開草稿」而非內容。
+- 程式內建 **host 白名單**：只接受 `server.matters.news / .town / .icu`，打錯網址會
+  直接中止，避免把帳號憑證送去未知伺服器。
+
 ## GitHub Actions（自動排程）
 
 兩個 workflow 在雲端按排程執行，所以憑證要存在 **GitHub repo secrets**，不是本機 `.env`：

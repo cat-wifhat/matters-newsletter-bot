@@ -36,7 +36,6 @@ from .matters_client import MattersClient
 
 log = logging.getLogger("digest")
 
-MATTERS_SITE = "https://matters.town"
 DEFAULT_STATE = "state/channel_pins.json"
 PIN_RETENTION_DAYS = 35  # prune state entries not seen pinned within this window
 
@@ -240,7 +239,7 @@ def _mention(author: dict) -> str:
 
 
 def _article_link(short_hash: str, title: str) -> str:
-    url = f"{MATTERS_SITE}/a/{short_hash}"
+    url = f"{config.MATTERS_SITE}/a/{short_hash}"
     return f'<a href="{escape(url)}">{escape(title)}</a>'
 
 
@@ -342,6 +341,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    config.validate_endpoint()
+    env = "TEST (matters.icu)" if config.is_test_env() else "PRODUCTION"
+    log.info("environment: %s  | api=%s site=%s", env, config.MATTERS_API, config.MATTERS_SITE)
     dry_run = args.dry_run or config.DRY_RUN
     if args.type == "weekly":
         return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit)
