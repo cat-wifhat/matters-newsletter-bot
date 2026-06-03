@@ -8,7 +8,7 @@ from typing import Any, Optional
 
 import requests
 
-from .config import MATTERS_API, USER_AGENT
+from .config import MATTERS_WRITE_ENDPOINT, USER_AGENT
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class MattersError(RuntimeError):
 
 
 class MattersClient:
-    def __init__(self, api_url: str = MATTERS_API):
+    def __init__(self, api_url: str = MATTERS_WRITE_ENDPOINT):
         self.api_url = api_url
         self.session = requests.Session()
         self.session.headers.update({

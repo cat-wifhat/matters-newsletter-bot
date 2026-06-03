@@ -1,42 +1,59 @@
 """Config for the Matters newsletter (digest) bot.
 
-This is a STANDALONE project, separate from the repost-bot. It only reads
-Matters' public GraphQL API and writes one digest draft; it does not scrape any
-external sites.
+This is a STANDALONE project, separate from the repost-bot. It READS article data
+from one Matters environment and WRITES a single digest draft to another (which
+may be the same). It does not scrape external sites.
 
-ENVIRONMENTS
-------------
-Production (default):
-    MATTERS_GRAPHQL_ENDPOINT = https://server.matters.news/graphql
-    MATTERS_SITE             = https://matters.town
-Test / staging (Matters' sandbox — separate database & accounts):
-    MATTERS_GRAPHQL_ENDPOINT = https://server.matters.icu/graphql
-    MATTERS_SITE             = https://matters.icu
+READ vs WRITE
+-------------
+The bot reads hottest/pinned articles from a SOURCE environment and creates the
+draft in a DESTINATION environment. These can differ — the key use case:
 
-Switch environments by setting those two env vars — no code change. The endpoint
-host is checked against an allowlist (below) so a typo/wrong host can't silently
-send your account credentials somewhere unexpected.
+    Read the PRODUCTION site's hot articles, but post the draft to the ICU TEST
+    site so the team (who can access icu) can review it together.
+
+Env vars (all optional; sensible production defaults):
+    MATTERS_READ_ENDPOINT   data source GraphQL     default server.matters.news
+    MATTERS_WRITE_ENDPOINT  draft destination + the account that logs in
+                                                     default = read endpoint
+    MATTERS_SITE            base URL for article LINKS (where the articles live)
+                                                     default https://matters.town
+    MATTERS_GRAPHQL_ENDPOINT  back-compat: sets BOTH read & write if the two
+                                                     specific vars are unset
+
+Environments:
+    Production : https://server.matters.news/graphql  +  https://matters.town
+    Test (icu) : https://server.matters.icu/graphql   +  https://matters.icu
+                 (separate database & accounts; register a test account there)
+
+The "read prod, write icu" setup:
+    MATTERS_WRITE_ENDPOINT=https://server.matters.icu/graphql
+    (leave READ/SITE at defaults so links still point to real matters.town articles)
 """
 import os
 from urllib.parse import urlparse
 
-# Endpoint + public site are env-configurable; default to PRODUCTION.
-MATTERS_API = os.environ.get(
-    "MATTERS_GRAPHQL_ENDPOINT", "https://server.matters.news/graphql"
-)
+_PROD_API = "https://server.matters.news/graphql"
+
+# Back-compat single-endpoint var sets both read & write unless overridden.
+_single = os.environ.get("MATTERS_GRAPHQL_ENDPOINT", _PROD_API)
+MATTERS_READ_ENDPOINT = os.environ.get("MATTERS_READ_ENDPOINT", _single)
+MATTERS_WRITE_ENDPOINT = os.environ.get("MATTERS_WRITE_ENDPOINT", _single)
+
+# Article links point to where the source articles actually live (the read site).
 MATTERS_SITE = os.environ.get("MATTERS_SITE", "https://matters.town")
 
-# Only these API hosts are allowed. Prevents accidentally logging in / posting
-# against an unknown host. (Pattern borrowed from mashbean/Your-Agent-for-Matters.)
+# Only these API hosts are allowed for read OR write. Prevents a typo from
+# sending account credentials to an unknown host. (Pattern borrowed from
+# mashbean/Your-Agent-for-Matters.)
 ALLOWED_API_HOSTS = {
     "server.matters.news",   # production
     "server.matters.town",   # production (alias)
     "server.matters.icu",    # test / staging
 }
 
-# Credentials. The GitHub workflow maps the repo secrets DIGEST_MATTERS_EMAIL /
-# DIGEST_MATTERS_PASSWORD onto these names. For the test env, use a SEPARATE
-# account registered on matters.icu (production accounts do not exist there).
+# Credentials — these belong to the WRITE (destination) environment. For an icu
+# write target, use a SEPARATE account registered on matters.icu.
 MATTERS_EMAIL = os.environ.get("MATTERS_EMAIL", "")
 MATTERS_PASSWORD = os.environ.get("MATTERS_PASSWORD", "")
 
@@ -48,15 +65,19 @@ USER_AGENT = (
 )
 
 
-def validate_endpoint() -> None:
-    """Abort if MATTERS_API points at a host not on the allowlist."""
-    host = (urlparse(MATTERS_API).hostname or "").lower()
-    if host not in ALLOWED_API_HOSTS:
-        raise SystemExit(
-            f"Refusing to run: API host {host!r} ({MATTERS_API}) is not in the "
-            f"allowlist {sorted(ALLOWED_API_HOSTS)}. Check MATTERS_GRAPHQL_ENDPOINT."
-        )
+def _host(url: str) -> str:
+    return (urlparse(url).hostname or "").lower()
 
 
-def is_test_env() -> bool:
-    return (urlparse(MATTERS_API).hostname or "").endswith(".icu")
+def validate_endpoints() -> None:
+    """Abort if either endpoint host is not on the allowlist."""
+    for label, url in (("read", MATTERS_READ_ENDPOINT), ("write", MATTERS_WRITE_ENDPOINT)):
+        if _host(url) not in ALLOWED_API_HOSTS:
+            raise SystemExit(
+                f"Refusing to run: {label} host {_host(url)!r} ({url}) is not in the "
+                f"allowlist {sorted(ALLOWED_API_HOSTS)}."
+            )
+
+
+def env_label(url: str) -> str:
+    return "TEST(icu)" if _host(url).endswith(".icu") else "PROD"

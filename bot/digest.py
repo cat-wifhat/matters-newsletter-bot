@@ -67,7 +67,7 @@ MAX_PER_AUTHOR_WEEKLY = 2  # diversify: cap any one author in the weekly top lis
 
 def _gql(query: str, variables: Optional[dict] = None) -> dict:
     resp = requests.post(
-        config.MATTERS_API,
+        config.MATTERS_READ_ENDPOINT,
         json={"query": query, "variables": variables or {}},
         headers={
             "User-Agent": config.USER_AGENT,
@@ -341,9 +341,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    config.validate_endpoint()
-    env = "TEST (matters.icu)" if config.is_test_env() else "PRODUCTION"
-    log.info("environment: %s  | api=%s site=%s", env, config.MATTERS_API, config.MATTERS_SITE)
+    config.validate_endpoints()
+    log.info("READ %s (%s)  →  WRITE %s (%s)  | links→%s",
+             config.env_label(config.MATTERS_READ_ENDPOINT), config.MATTERS_READ_ENDPOINT,
+             config.env_label(config.MATTERS_WRITE_ENDPOINT), config.MATTERS_WRITE_ENDPOINT,
+             config.MATTERS_SITE)
     dry_run = args.dry_run or config.DRY_RUN
     if args.type == "weekly":
         return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit)

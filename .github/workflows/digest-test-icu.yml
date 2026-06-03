@@ -1,0 +1,47 @@
+name: TEST on icu — read prod, post draft to matters.icu
+
+# Testing-period helper: READS hot/pinned articles from the PRODUCTION site, but
+# POSTS the compiled draft to the icu TEST environment, so the team (who can log
+# into matters.icu) can review the digest together. Manual trigger only — it does
+# NOT run on a schedule, and does NOT touch the production newsletter account.
+
+on:
+  workflow_dispatch:
+    inputs:
+      type:
+        description: "weekly or monthly"
+        required: true
+        default: "weekly"
+        type: choice
+        options: ["weekly", "monthly"]
+      dry_run:
+        description: "Dry run (compose only, don't create the draft)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # READ stays on production (defaults); only the WRITE target is icu.
+      MATTERS_WRITE_ENDPOINT: https://server.matters.icu/graphql
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Compose digest → matters.icu draft
+        env:
+          # Dedicated icu TEST account — add these two repo secrets.
+          MATTERS_EMAIL: ${{ secrets.ICU_MATTERS_EMAIL }}
+          MATTERS_PASSWORD: ${{ secrets.ICU_MATTERS_PASSWORD }}
+        run: |
+          ARGS="--type ${{ github.event.inputs.type }} --state state/icu-test-pins.json"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          python -m bot.digest $ARGS

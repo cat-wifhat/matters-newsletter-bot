@@ -41,36 +41,42 @@ set -a; source .env; set +a
 python -m bot.digest --type weekly
 ```
 
-## 測試環境（matters.icu）
+## 測試環境（matters.icu）：讀正式站、寫測試站
 
-Matters 有一個獨立的測試站 **matters.icu**，資料庫與帳戶都與正式站分開。
-在測試環境試跑，**完全不會碰到正式站**。
+測試期間的需求是：**從正式站（matters.town）抓真實熱門文**，但把草稿**貼到 icu 測試站**，
+讓能登入 matters.icu 的團隊一起檢視評估（草稿放在個人草稿箱別人看不到）。
 
-切換只需設兩個環境變數（不改程式碼）：
+因此本工具的讀／寫端可分開設定：
 
-| | 正式站（預設） | 測試站 |
+| 變數 | 作用 | 預設 |
 |---|---|---|
-| `MATTERS_GRAPHQL_ENDPOINT` | `https://server.matters.news/graphql` | `https://server.matters.icu/graphql` |
-| `MATTERS_SITE` | `https://matters.town` | `https://matters.icu` |
+| `MATTERS_READ_ENDPOINT` | 抓文章資料的來源 | 正式站 `server.matters.news` |
+| `MATTERS_WRITE_ENDPOINT` | 草稿貼去哪、用哪個帳戶登入 | 同 read |
+| `MATTERS_SITE` | 文章連結的網址（文章實際所在） | `https://matters.town` |
+
+「讀正式站、寫 icu」只需設一個變數（read/site 留預設，連結才會指向真正的 matters.town 文章）：
 
 ```bash
-# 在測試站 dry-run（只組稿、不發）
-MATTERS_GRAPHQL_ENDPOINT=https://server.matters.icu/graphql \
-MATTERS_SITE=https://matters.icu \
+cd ~/Desktop/newsletterbot
+# dry-run（讀正式站、只組稿、不登入不發）
+MATTERS_WRITE_ENDPOINT=https://server.matters.icu/graphql \
 python -m bot.digest --type weekly --dry-run
 
-# 在測試站真的開草稿（需先在 matters.icu 註冊一個測試帳戶，並設 MATTERS_EMAIL/PASSWORD）
-MATTERS_GRAPHQL_ENDPOINT=https://server.matters.icu/graphql \
-MATTERS_SITE=https://matters.icu \
+# 真的把草稿貼到 icu（用 icu 測試帳戶）
+MATTERS_WRITE_ENDPOINT=https://server.matters.icu/graphql \
+MATTERS_EMAIL=你的icu帳戶 MATTERS_PASSWORD=你的icu密碼 \
 python -m bot.digest --type weekly
 ```
 
+也可用 GitHub Actions 的 **「TEST on icu」** workflow（手動觸發），詳見下節。
+
 注意：
-- 測試站的帳戶與正式站**不共用**，必須在 matters.icu 另外註冊。
-- 測試站內容稀疏（熱門文常常是 0 篇、頻道是測試資料），所以草稿可能近乎空白——
-  這是正常的；測試目的是驗證「能連上、能登入、能開草稿」而非內容。
-- 程式內建 **host 白名單**：只接受 `server.matters.news / .town / .icu`，打錯網址會
-  直接中止，避免把帳號憑證送去未知伺服器。
+- icu 的帳戶與正式站**不共用**，必須在 matters.icu 另外註冊。
+- 草稿內容來自正式站，所以是真實熱門文；連結指向真正的 matters.town 文章。
+- **被 tag 的正式站作者不會收到通知**：草稿從不發佈（@提及只在發佈時才通知），
+  且 icu 與正式站是獨立系統，無法跨系統通知。
+- 內建 **host 白名單**：read/write 只接受 `server.matters.news / .town / .icu`，
+  打錯網址會直接中止，避免把帳號憑證送去未知伺服器。
 
 ## GitHub Actions（自動排程）
 
