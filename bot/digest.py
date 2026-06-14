@@ -244,10 +244,26 @@ def _article_link(short_hash: str, title: str) -> str:
 
 
 def render_weekly_html(articles: list[dict], *, days: int) -> str:
-    parts = [
-        f"<p>過去 {days} 日 Matters 各頻道互動最高的 {len(articles)} 篇文章"
-        f"（按拍手＋留言總數排序，每位作者最多 {MAX_PER_AUTHOR_WEEKLY} 篇）。感謝各位作者：</p>"
-    ]
+    intro = (
+        "<p>這是一份以 AI 製作的 Matters 作者「全站熱門周報」，把複雜的後台算法，"
+        "轉化為人人都看得懂的社群周報。</p>"
+        "<blockquote><p>「文字的迴聲，由你的每一次拍手與留言決定。」</p></blockquote>"
+        "<p>這份周報的誕生，是為了記錄過去 7 天內在 Matters 社群中互動最熱烈、最能引起"
+        "共鳴的 10 篇佳作。周報打破了頻道的邊界，將「生活事、書音影、旅・居、性別／愛、"
+        "時事・趨勢、身心靈、創作・小說」這七大頻道的數據合併，為大家打包精選。</p>"
+        "<p><strong>📊 周報是怎麼挑選的？</strong></p>"
+        "<ul>"
+        "<li>時間限定：只計算過去 7 天內發表的新鮮文章。</li>"
+        "<li>社區迴響：周報看到的是文友之間的走動。你給的每一記拍手（👏）"
+        "和留下的每一則留言（💬）都是 1 次紀錄。</li>"
+        "<li>百花齊放：為了讓更多創作者被看見，每位作者每週最多僅保留 "
+        f"{MAX_PER_AUTHOR_WEEKLY} 篇作品入榜。</li>"
+        "</ul>"
+        "<p>這是一份由讀者互動紀錄催生的「全站熱門榜」，感謝每一位用文字點燃思考的創作者，"
+        "以及用互動支持好文的你。</p>"
+        "<hr>"
+    )
+    parts = [intro]
     for i, n in enumerate(articles, 1):
         stats = f'👏 {n["appreciationsReceivedTotal"]} ・ 💬 {n["commentCount"]}'
         parts.append(
@@ -282,16 +298,20 @@ def _login_client() -> MattersClient:
     return client
 
 
-def _post_draft(title: str, content: str, tags: list[str], *, dry_run: bool) -> None:
+def _post_draft(title: str, content: str, tags: list[str], *,
+                summary: Optional[str] = None, dry_run: bool) -> None:
     if dry_run:
         log.info("[DRY-RUN] title: %s", title)
+        if summary:
+            log.info("[DRY-RUN] summary: %s", summary)
         log.info("[DRY-RUN] tags: %s", tags)
         log.info("[DRY-RUN] content (%d chars):\n%s", len(content), content)
         return
     client = _login_client()
     draft_id = client.create_empty_draft(title=title)
     log.info("created draft %s", draft_id)
-    client.update_draft(draft_id, title=title, content=content, tags=tags[:3], license="arr")
+    client.update_draft(draft_id, title=title, content=content, summary=summary,
+                        tags=tags[:3], license="arr")
     log.info("draft saved (left UNPUBLISHED in draft box): %s", title)
 
 
@@ -302,8 +322,10 @@ def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10) -> int:
         return 0
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
     title = f"Matters 一周熱門文章 ｜ {today}"
+    summary = (f"周報列出了過去 {days} 日 Matters 各頻道互動最高的 {len(articles)} 篇文章。"
+               "以下是各篇文章的列表。")
     content = render_weekly_html(articles, days=days)
-    _post_draft(title, content, WEEKLY_TAGS, dry_run=dry_run)
+    _post_draft(title, content, WEEKLY_TAGS, summary=summary, dry_run=dry_run)
     return 0
 
 

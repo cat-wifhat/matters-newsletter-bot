@@ -73,12 +73,13 @@ class MattersClient:
         *,
         title: str,
         content: str,
+        summary: Optional[str] = None,
         tags: Optional[list[str]] = None,
         license: str = "arr",
     ) -> dict:
         query = """
         mutation UpdateDraft($input: PutDraftInput!) {
-          putDraft(input: $input) { id title slug publishState }
+          putDraft(input: $input) { id title slug summary publishState }
         }
         """
         inp: dict[str, Any] = {
@@ -87,6 +88,8 @@ class MattersClient:
             "content": content,
             "license": license,
         }
+        if summary:
+            inp["summary"] = summary
         if tags:
             inp["tags"] = tags
         return self._gql(query, {"input": inp})["putDraft"]
