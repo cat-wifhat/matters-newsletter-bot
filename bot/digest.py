@@ -221,7 +221,8 @@ def pinned_within(state: dict, channel: dict, *, days: int, today: str) -> list[
         for sh, meta in bucket.items()
         if dt.date.fromisoformat(meta["last_seen"]) >= cutoff
     ]
-    rows.sort(key=lambda r: r["last_seen"], reverse=True)
+    # 中性時序：按首次被置頂的時間排，不代表重要程度（置頂時長非品質訊號）。
+    rows.sort(key=lambda r: r["first_seen"])
     return rows
 
 
@@ -273,8 +274,47 @@ def render_weekly_html(articles: list[dict], *, days: int) -> str:
     return "".join(parts)
 
 
-def render_monthly_html(by_channel: list[tuple[dict, list[dict]]], *, days: int) -> str:
-    parts = [f"<p>過去 {days} 日內各頻道曾被置頂（精選）的文章，感謝各位作者：</p>"]
+def render_monthly_html(hot_articles: list[dict],
+                        by_channel: list[tuple[dict, list[dict]]], *, days: int) -> str:
+    intro = (
+        "<p>這是一份以 AI 製作的 Matters 月度總結，分為「全站熱門月報」與「置頂文章月報」"
+        "兩個欄目，為大家留下整月的閱讀清單。</p>"
+        "<blockquote><p>「留下一份清單，記住這個月大家留下的閱讀與思想。」</p></blockquote>"
+        "<p>這份月報的誕生，是為了記錄過去 30 天內在 Matters 社群中聊得最熱烈，以及在各頻道"
+        "曾被推薦過的文章。月報將數據與頻道分類呈現，方便大家按圖索驥，回顧這整個月留下來的文字。</p>"
+        "<p><strong>📊 欄目一：全站熱門月報是怎麼挑選的？</strong></p>"
+        "<ul>"
+        "<li>時間限定：只計算過去 30 天內發表的文章。</li>"
+        "<li>社區迴響：月報看到的是文友之間的走動。你給的每一記拍手（👏）和留下的每一則留言"
+        "（💬）都是 1 次紀錄。</li>"
+        "<li>百花齊放：為了讓更多創作者被看見，每位作者每月最多僅保留 2 篇作品入榜。</li>"
+        "</ul>"
+        "<p><strong>📊 欄目二：置頂文章月報是怎麼挑選的？</strong></p>"
+        "<ul>"
+        "<li>時間限定：收集過去 30 天內在各大頻道被推薦過的文章。</li>"
+        "<li>精選定義：這裡不看互動數據的高低，只記錄各頻道內被置頂（綠色 pin 📌）的文章。</li>"
+        "<li>時光快照：由於網站只會顯示「目前置頂」，沒有歷史紀錄，所以數據 AI 每天都會自動拍下"
+        "各頻道的快照，把這一個月內曾出現過的所有置頂文章記下來，累積成這份整月清單。</li>"
+        "</ul>"
+        "<hr>"
+    )
+    parts = [intro]
+
+    # 欄目一：全站熱門月報（過去 30 天，拍手＋留言）
+    parts.append("<p><strong>🔥 全站熱門月報</strong></p>")
+    if not hot_articles:
+        parts.append("<p>（暫無資料）</p>")
+    for i, n in enumerate(hot_articles, 1):
+        stats = f'👏 {n["appreciationsReceivedTotal"]} ・ 💬 {n["commentCount"]}'
+        parts.append(
+            f"<p>{i}. {_article_link(n['shortHash'], n['title'])}<br>"
+            f"by {_mention(n['author'])}　{stats}</p>"
+        )
+
+    parts.append("<hr>")
+
+    # 欄目二：置頂文章月報（依累積快照，按頻道分組）
+    parts.append("<p><strong>📌 置頂文章月報</strong></p>")
     for channel, rows in by_channel:
         parts.append(f"<h2>{escape(channel['name'])}</h2>")
         if not rows:
@@ -339,14 +379,18 @@ def run_snapshot(*, state_path: str) -> int:
 
 def run_monthly(*, dry_run: bool, state_path: str, days: int = 30) -> int:
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
-    # Always fold today's pins in first, so even a fresh state isn't empty.
+    # 欄目二：先把今日置頂併入累積狀態（即使狀態空也不會全空），再列整月置頂。
     state = snapshot_pins(load_state(state_path), today=today)
     save_state(state_path, state)
     by_channel = [(c, pinned_within(state, c, days=days, today=today)) for c in CHANNELS]
+    # 欄目一：過去 30 天全站熱門（與周報同邏輯，僅天數不同）。
+    hot_articles = fetch_weekly_top(days=days, limit=10)
     now = dt.datetime.now(dt.timezone.utc)
-    title = f"Matters 各頻道精選 ｜ {now.year}年{now.month}月"
-    content = render_monthly_html(by_channel, days=days)
-    _post_draft(title, content, MONTHLY_TAGS, dry_run=dry_run)
+    title = f"Matters 全站熱門與頻道置頂月報 ｜ {now.year}-{now.month:02d}"
+    summary = ("月報列出了過去 30 日 Matters 各頻道互動最高的 10 篇文章，"
+               "以及各頻道編輯置頂過的文章。以下是文章名單。")
+    content = render_monthly_html(hot_articles, by_channel, days=days)
+    _post_draft(title, content, MONTHLY_TAGS, summary=summary, dry_run=dry_run)
     return 0
 
 
