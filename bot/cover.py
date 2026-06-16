@@ -7,6 +7,7 @@ Fonts: Noto Sans TC (vendored). Keywords are auto-extracted from article titles.
 from __future__ import annotations
 
 import io
+import math
 import re
 from pathlib import Path
 
@@ -38,7 +39,35 @@ SLOTS = [
     (228, 552, "M"), (942, 672, "M"), (528, 546, "M"), (456, 840, "M"), (924, 840, "M"),
     (552, 330, "S"), (276, 726, "S"), (792, 348, "S"), (1002, 552, "S"),
 ]
-STARS = [(1015, 325, 30, WHITE), (295, 845, 26, CYAN), (985, 940, 20, WHITE)]
+# Star positions (x, y, size); colours come from the theme.
+STAR_POS = [(1015, 325, 30), (295, 845, 26), (985, 940, 20)]
+
+# Two locked colour themes. "purple" = 周報（原版）; "lime" = 雙周報（鮮色版）。
+THEMES = {
+    "purple": {
+        "bg": PURPLE, "L": LIME, "M": WHITE, "S": LILAC,
+        "kicker": LIME, "date": LILAC, "logo": WHITE,
+        "stars": [WHITE, CYAN, WHITE],
+    },
+    "lime": {
+        "bg": LIME,
+        "L": (90, 67, 229, 255),     # #5a43e5 鮮紫
+        "M": (36, 25, 83, 255),      # #241953 深紫近黑
+        "S": (124, 92, 240, 255),    # #7c5cf0 中紫
+        "kicker": (90, 67, 229, 255), "date": (90, 67, 229, 255),
+        "logo": (30, 18, 64, 255),   # #1e1240 深紫 logo（萊姆底用深色才看得到）
+        "stars": [(90, 67, 229, 255), (47, 207, 208, 255), (90, 67, 229, 255)],
+    },
+    "greengold": {                   # 經典綠金（legacy 品牌色）
+        "bg": (13, 103, 99, 255),    # #0d6763 經典綠
+        "L": (192, 164, 107, 255),   # #c0a46b 金
+        "M": (255, 255, 255, 255),   # white
+        "S": (159, 225, 203, 255),   # #9fe1cb 淺青
+        "kicker": (192, 164, 107, 255), "date": (159, 225, 203, 255),
+        "logo": (255, 255, 255, 255),  # 白 logo（深綠底）
+        "stars": [(192, 164, 107, 255), (255, 255, 255, 255), (159, 225, 203, 255)],
+    },
+}
 
 _STOP = set("一個我們你們他們這個那個就是這樣可以已經沒有什麼以及之後之前關於還有因為所以但是如果不過然後其實這些那些".split())
 _CJK = re.compile(r"[一-鿿]")
@@ -102,6 +131,21 @@ def _star(d: ImageDraw.ImageDraw, cx: int, cy: int, s: int, color) -> None:
     d.polygon([(cx + a * s, cy + b * s) for a, b in pts], fill=color)
 
 
+def _decor(img: Image.Image, th: dict) -> None:
+    """線條裝飾（細內框 + 雙角放射細線），畫在文字下層。各主題色通用。"""
+    o = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(o)
+    d.rounded_rectangle([56, 56, 1144, 1144], radius=30, outline=th["S"][:3] + (130,), width=3)
+    ray = th["L"][:3] + (60,)
+    for a in range(98, 176, 11):    # 右上角扇形
+        d.line([1200, 0, 1200 + 520 * math.cos(math.radians(a)), 520 * math.sin(math.radians(a))],
+               fill=ray, width=4)
+    for a in range(278, 356, 11):   # 左下角扇形
+        d.line([0, 1200, 520 * math.cos(math.radians(a)), 1200 + 520 * math.sin(math.radians(a))],
+               fill=ray, width=4)
+    img.alpha_composite(o)
+
+
 def _logo_no_lab() -> Image.Image:
     """White Matters logo with the trailing 'Lab' word cropped off."""
     im = Image.open(LOGO_WHITE).convert("RGBA")
@@ -123,19 +167,25 @@ def _logo_no_lab() -> Image.Image:
     return im.crop((c0, rows[0], cut, rows[-1] + 1))
 
 
-def generate(kicker: str, date_str: str, words: list[str]) -> bytes:
-    """Render the cover and return PNG bytes."""
-    img = Image.new("RGBA", (1200, 1200), PURPLE)
+def generate(kicker: str, date_str: str, words: list[str], theme: str = "purple",
+             decor=None) -> bytes:
+    """Render the cover and return PNG bytes. theme: 'purple' / 'lime' / 'greengold'.
+    decor: optional callable(img, theme_dict) drawn under the words (e.g. 線條)."""
+    th = THEMES[theme]
+    img = Image.new("RGBA", (1200, 1200), th["bg"])
+    deco = _decor if decor is None else decor  # 預設套用線條裝飾；decor=False 可關閉
+    if deco:
+        deco(img, th)
     d = ImageDraw.Draw(img)
 
-    for cx, cy, s, color in STARS:
-        _star(d, cx, cy, s, color)
+    for (cx, cy, s), col in zip(STAR_POS, th["stars"]):
+        _star(d, cx, cy, s, col)
 
-    d.text((80, 150), kicker, font=_font(38, 700), fill=LIME, anchor="ls")
+    d.text((80, 150), kicker, font=_font(38, 700), fill=th["kicker"], anchor="ls")
 
     base = {"L": 125, "M": 84, "S": 58}
     weight = {"L": 900, "M": 700, "S": 700}
-    color = {"L": LIME, "M": WHITE, "S": LILAC}
+    color = {"L": th["L"], "M": th["M"], "S": th["S"]}
     slots = {t: [s for s in SLOTS if s[2] == t] for t in "LMS"}
 
     pool = list(words)
@@ -160,11 +210,13 @@ def generate(kicker: str, date_str: str, words: list[str]) -> bytes:
         d.text((x, y), w, font=_font(size, weight[tier]), fill=color[tier], anchor="ms")
 
     logo = _logo_no_lab()
-    th = 48
-    logo = logo.resize((round(logo.width * th / logo.height), th), Image.LANCZOS)
-    img.alpha_composite(logo, (70, 1108 - th // 2))
+    tint = Image.new("RGBA", logo.size, th["logo"])  # 依主題上色（白／深紫）
+    tint.putalpha(logo.split()[3])
+    lh = 48
+    tint = tint.resize((round(tint.width * lh / tint.height), lh), Image.LANCZOS)
+    img.alpha_composite(tint, (70, 1108 - lh // 2))
 
-    d.text((1120, 1122), date_str, font=_font(36, 500), fill=LILAC, anchor="rs")
+    d.text((1120, 1122), date_str, font=_font(36, 500), fill=th["date"], anchor="rs")
 
     out = io.BytesIO()
     img.convert("RGB").save(out, "PNG")

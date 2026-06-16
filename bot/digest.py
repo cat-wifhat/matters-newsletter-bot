@@ -339,11 +339,11 @@ def _login_client() -> MattersClient:
     return client
 
 
-def _make_cover(kicker: str, today_iso: str, titles: list[str]) -> Optional[bytes]:
+def _make_cover(kicker: str, today_iso: str, titles: list[str], theme: str = "purple") -> Optional[bytes]:
     """Auto-extract keywords and render the cover PNG. Never blocks the draft."""
     try:
         from .cover import keywords, generate
-        return generate(kicker, today_iso.replace("-", " · "), keywords(titles))
+        return generate(kicker, today_iso.replace("-", " · "), keywords(titles), theme=theme)
     except Exception as e:  # noqa: BLE001 — cover is best-effort
         log.warning("cover generation failed (%s); posting without cover", e)
         return None
@@ -413,7 +413,7 @@ def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14) -> int:
     summary = (f"雙周報列出了過去 {days} 日 Matters 各頻道互動最高的 {len(hot_articles)} 篇文章，"
                "以及各頻道編輯置頂過的文章。以下是文章名單。")
     content = render_biweekly_html(hot_articles, by_channel, days=days)
-    cover_png = _make_cover("Matters ｜ 雙周報", today, [a["title"] for a in hot_articles])
+    cover_png = _make_cover("Matters ｜ 雙周報", today, [a["title"] for a in hot_articles], theme="greengold")
     _post_draft(title, content, BIWEEKLY_TAGS, summary=summary, cover_png=cover_png, dry_run=dry_run)
     return 0
 
