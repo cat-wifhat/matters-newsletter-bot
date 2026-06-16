@@ -1,4 +1,4 @@
-"""Weekly / monthly Matters digest — compiles one draft from many articles.
+"""Weekly / biweekly Matters digest — compiles one draft from many articles.
 
 Reads Matters' public GraphQL API and assembles a *single* draft listing many
 articles with @mentions of their authors. It stops at the draft stage — nothing
@@ -9,10 +9,11 @@ Three modes:
              (claps + comments) over the union of all topic channels, top 10,
              max 2 per author.
   snapshot — record today's channel-pinned ("精選" green pin) articles into the
-             state file. Run daily so we accumulate a month of pins even though
+             state file. Run daily so we accumulate pins over time even though
              Matters' API exposes only the *current* pin (no history).
-  monthly  — snapshot today's pins, then list every article pinned in the last
-             30 days (from the accumulated state), grouped by channel.
+  biweekly — site-wide hot (past 14 days, same logic as weekly) PLUS every
+             article pinned in the last 14 days (from the accumulated state),
+             grouped by channel. Two columns in one draft.
 
 Reads need no auth; we log in only to create the draft. Credentials come from
 MATTERS_EMAIL / MATTERS_PASSWORD env vars (the workflow maps the dedicated
@@ -39,8 +40,8 @@ log = logging.getLogger("digest")
 DEFAULT_STATE = "state/channel_pins.json"
 PIN_RETENTION_DAYS = 35  # prune state entries not seen pinned within this window
 
-# Six channels for the monthly 精選 digest (base64 GraphQL node ids; decode to
-# "TopicChannel:<n>"). "創作・小說" is intentionally excluded here.
+# Six channels for the biweekly 精選 (pinned) column (base64 GraphQL node ids;
+# decode to "TopicChannel:<n>"). "創作・小說" is intentionally excluded here.
 CHANNELS: list[dict[str, str]] = [
     {"name": "生活事", "id": "VG9waWNDaGFubmVsOjE1"},   # TopicChannel:15
     {"name": "書音影", "id": "VG9waWNDaGFubmVsOjk="},    # TopicChannel:9
@@ -58,7 +59,7 @@ WEEKLY_CHANNELS: list[dict[str, str]] = CHANNELS + [
 ]
 
 WEEKLY_TAGS = ["Matters週報", "一周熱門"]
-MONTHLY_TAGS = ["Matters精選", "頻道精選"]
+BIWEEKLY_TAGS = ["Matters雙周報", "全站熱門", "頻道精選"]
 
 MAX_PER_AUTHOR_WEEKLY = 2  # diversify: cap any one author in the weekly top list
 
@@ -274,34 +275,34 @@ def render_weekly_html(articles: list[dict], *, days: int) -> str:
     return "".join(parts)
 
 
-def render_monthly_html(hot_articles: list[dict],
-                        by_channel: list[tuple[dict, list[dict]]], *, days: int) -> str:
+def render_biweekly_html(hot_articles: list[dict],
+                         by_channel: list[tuple[dict, list[dict]]], *, days: int) -> str:
     intro = (
-        "<p>這是一份以 AI 製作的 Matters 月度總結，分為「全站熱門月報」與「置頂文章月報」"
-        "兩個欄目，為大家留下整月的閱讀清單。</p>"
-        "<blockquote><p>「留下一份清單，記住這個月大家留下的閱讀與思想。」</p></blockquote>"
-        "<p>這份月報的誕生，是為了記錄過去 30 天內在 Matters 社群中聊得最熱烈，以及在各頻道"
-        "曾被推薦過的文章。月報將數據與頻道分類呈現，方便大家按圖索驥，回顧這整個月留下來的文字。</p>"
-        "<p><strong>📊 欄目一：全站熱門月報是怎麼挑選的？</strong></p>"
+        "<p>這是一份以 AI 製作的 Matters 雙周總結，分為「全站熱門雙周報」與「置頂文章雙周報」"
+        "兩個欄目，為大家留下這兩周的閱讀清單。</p>"
+        "<blockquote><p>「留下一份清單，記住這兩周大家留下的閱讀與思想。」</p></blockquote>"
+        "<p>這份雙周報的誕生，是為了記錄過去 14 天內在 Matters 社群中聊得最熱烈，以及在各頻道"
+        "曾被推薦過的文章。雙周報將數據與頻道分類呈現，方便大家按圖索驥，回顧這兩周留下來的文字。</p>"
+        "<p><strong>📊 欄目一：全站熱門雙周報是怎麼挑選的？</strong></p>"
         "<ul>"
-        "<li>時間限定：只計算過去 30 天內發表的文章。</li>"
-        "<li>社區迴響：月報看到的是文友之間的走動。你給的每一記拍手（👏）和留下的每一則留言"
+        "<li>時間限定：只計算過去 14 天內發表的文章。</li>"
+        "<li>社區迴響：雙周報看到的是文友之間的走動。你給的每一記拍手（👏）和留下的每一則留言"
         "（💬）都是 1 次紀錄。</li>"
-        "<li>百花齊放：為了讓更多創作者被看見，每位作者每月最多僅保留 2 篇作品入榜。</li>"
+        "<li>百花齊放：為了讓更多創作者被看見，每位作者最多僅保留 2 篇作品入榜。</li>"
         "</ul>"
-        "<p><strong>📊 欄目二：置頂文章月報是怎麼挑選的？</strong></p>"
+        "<p><strong>📊 欄目二：置頂文章雙周報是怎麼挑選的？</strong></p>"
         "<ul>"
-        "<li>時間限定：收集過去 30 天內在各大頻道被推薦過的文章。</li>"
+        "<li>時間限定：收集過去 14 天內在各大頻道被推薦過的文章。</li>"
         "<li>精選定義：這裡不看互動數據的高低，只記錄各頻道內被置頂（綠色 pin 📌）的文章。</li>"
         "<li>時光快照：由於網站只會顯示「目前置頂」，沒有歷史紀錄，所以數據 AI 每天都會自動拍下"
-        "各頻道的快照，把這一個月內曾出現過的所有置頂文章記下來，累積成這份整月清單。</li>"
+        "各頻道的快照，把這兩周內曾出現過的所有置頂文章記下來，累積成這份雙周清單。</li>"
         "</ul>"
         "<hr>"
     )
     parts = [intro]
 
-    # 欄目一：全站熱門月報（過去 30 天，拍手＋留言）
-    parts.append("<p><strong>🔥 全站熱門月報</strong></p>")
+    # 欄目一：全站熱門雙周報（過去 14 天，拍手＋留言）
+    parts.append("<p><strong>🔥 全站熱門雙周報</strong></p>")
     if not hot_articles:
         parts.append("<p>（暫無資料）</p>")
     for i, n in enumerate(hot_articles, 1):
@@ -313,8 +314,8 @@ def render_monthly_html(hot_articles: list[dict],
 
     parts.append("<hr>")
 
-    # 欄目二：置頂文章月報（依累積快照，按頻道分組）
-    parts.append("<p><strong>📌 置頂文章月報</strong></p>")
+    # 欄目二：置頂文章雙周報（依累積快照，按頻道分組）
+    parts.append("<p><strong>📌 置頂文章雙周報</strong></p>")
     for channel, rows in by_channel:
         parts.append(f"<h2>{escape(channel['name'])}</h2>")
         if not rows:
@@ -338,20 +339,42 @@ def _login_client() -> MattersClient:
     return client
 
 
+def _make_cover(kicker: str, today_iso: str, titles: list[str]) -> Optional[bytes]:
+    """Auto-extract keywords and render the cover PNG. Never blocks the draft."""
+    try:
+        from .cover import keywords, generate
+        return generate(kicker, today_iso.replace("-", " · "), keywords(titles))
+    except Exception as e:  # noqa: BLE001 — cover is best-effort
+        log.warning("cover generation failed (%s); posting without cover", e)
+        return None
+
+
 def _post_draft(title: str, content: str, tags: list[str], *,
-                summary: Optional[str] = None, dry_run: bool) -> None:
+                summary: Optional[str] = None, cover_png: Optional[bytes] = None,
+                dry_run: bool) -> None:
     if dry_run:
         log.info("[DRY-RUN] title: %s", title)
         if summary:
             log.info("[DRY-RUN] summary: %s", summary)
+        if cover_png:
+            log.info("[DRY-RUN] cover image generated (%d bytes)", len(cover_png))
         log.info("[DRY-RUN] tags: %s", tags)
         log.info("[DRY-RUN] content (%d chars):\n%s", len(content), content)
         return
     client = _login_client()
     draft_id = client.create_empty_draft(title=title)
     log.info("created draft %s", draft_id)
+    cover_id = None
+    if cover_png:
+        cover = client.upload_asset(cover_png, "cover.png", "cover", draft_id)
+        embed = client.upload_asset(cover_png, "embed.png", "embed", draft_id)
+        cover_id = cover["id"]
+        content = (f'<figure class="image"><img src="{escape(embed["path"])}" '
+                   f'data-asset-id="{escape(embed["id"])}" alt=""><figcaption></figcaption></figure>'
+                   + content)
+        log.info("uploaded cover=%s embed=%s", cover["id"], embed["id"])
     client.update_draft(draft_id, title=title, content=content, summary=summary,
-                        tags=tags[:3], license="arr")
+                        cover=cover_id, tags=tags[:3], license="arr")
     log.info("draft saved (left UNPUBLISHED in draft box): %s", title)
 
 
@@ -365,7 +388,8 @@ def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10) -> int:
     summary = (f"周報列出了過去 {days} 日 Matters 各頻道互動最高的 {len(articles)} 篇文章。"
                "以下是各篇文章的列表。")
     content = render_weekly_html(articles, days=days)
-    _post_draft(title, content, WEEKLY_TAGS, summary=summary, dry_run=dry_run)
+    cover_png = _make_cover("Matters ｜ 一周熱門", today, [a["title"] for a in articles])
+    _post_draft(title, content, WEEKLY_TAGS, summary=summary, cover_png=cover_png, dry_run=dry_run)
     return 0
 
 
@@ -377,30 +401,30 @@ def run_snapshot(*, state_path: str) -> int:
     return 0
 
 
-def run_monthly(*, dry_run: bool, state_path: str, days: int = 30) -> int:
+def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14) -> int:
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
-    # 欄目二：先把今日置頂併入累積狀態（即使狀態空也不會全空），再列整月置頂。
+    # 欄目二：先把今日置頂併入累積狀態（即使狀態空也不會全空），再列兩周置頂。
     state = snapshot_pins(load_state(state_path), today=today)
     save_state(state_path, state)
     by_channel = [(c, pinned_within(state, c, days=days, today=today)) for c in CHANNELS]
-    # 欄目一：過去 30 天全站熱門（與周報同邏輯，僅天數不同）。
+    # 欄目一：過去 14 天全站熱門（與周報同邏輯，僅天數不同）。
     hot_articles = fetch_weekly_top(days=days, limit=10)
-    now = dt.datetime.now(dt.timezone.utc)
-    title = f"Matters 全站熱門與頻道置頂月報 ｜ {now.year}-{now.month:02d}"
-    summary = ("月報列出了過去 30 日 Matters 各頻道互動最高的 10 篇文章，"
+    title = f"Matters 全站熱門與頻道置頂雙周報 ｜ {today}"
+    summary = (f"雙周報列出了過去 {days} 日 Matters 各頻道互動最高的 {len(hot_articles)} 篇文章，"
                "以及各頻道編輯置頂過的文章。以下是文章名單。")
-    content = render_monthly_html(hot_articles, by_channel, days=days)
-    _post_draft(title, content, MONTHLY_TAGS, summary=summary, dry_run=dry_run)
+    content = render_biweekly_html(hot_articles, by_channel, days=days)
+    cover_png = _make_cover("Matters ｜ 雙周報", today, [a["title"] for a in hot_articles])
+    _post_draft(title, content, BIWEEKLY_TAGS, summary=summary, cover_png=cover_png, dry_run=dry_run)
     return 0
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Compile a Matters digest draft.")
-    parser.add_argument("--type", required=True, choices=["weekly", "monthly", "snapshot"])
+    parser.add_argument("--type", required=True, choices=["weekly", "biweekly", "snapshot"])
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the composed draft instead of posting.")
     parser.add_argument("--days", type=int, default=None,
-                        help="weekly lookback (default 7) / monthly pin window (default 30).")
+                        help="weekly lookback (default 7) / biweekly window (default 14).")
     parser.add_argument("--limit", type=int, default=10, help="Weekly: max articles.")
     parser.add_argument("--state", default=DEFAULT_STATE, help="Pin-snapshot state JSON path.")
     args = parser.parse_args(argv)
@@ -417,7 +441,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit)
     if args.type == "snapshot":
         return run_snapshot(state_path=args.state)
-    return run_monthly(dry_run=dry_run, state_path=args.state, days=args.days or 30)
+    return run_biweekly(dry_run=dry_run, state_path=args.state, days=args.days or 14)
 
 
 if __name__ == "__main__":

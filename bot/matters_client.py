@@ -3,6 +3,7 @@
 Only what a digest needs: emailLogin, create an empty draft, and update it with
 content. No image upload, no publish — the digest stops at the draft box.
 """
+import json
 import logging
 from typing import Any, Optional
 
@@ -74,6 +75,7 @@ class MattersClient:
         title: str,
         content: str,
         summary: Optional[str] = None,
+        cover: Optional[str] = None,
         tags: Optional[list[str]] = None,
         license: str = "arr",
     ) -> dict:
@@ -90,6 +92,48 @@ class MattersClient:
         }
         if summary:
             inp["summary"] = summary
+        if cover:
+            inp["cover"] = cover
         if tags:
             inp["tags"] = tags
         return self._gql(query, {"input": inp})["putDraft"]
+
+    def upload_asset(
+        self,
+        data: bytes,
+        filename: str,
+        asset_type: str,
+        entity_id: str,
+        *,
+        entity_type: str = "draft",
+        mime: str = "image/png",
+    ) -> dict:
+        """Upload an image via singleFileUpload (GraphQL multipart). Returns {id, path}."""
+        query = ("mutation($input: SingleFileUploadInput!) "
+                 "{ singleFileUpload(input: $input) { id path } }")
+        variables = {"input": {"type": asset_type, "file": None,
+                               "entityType": entity_type, "entityId": entity_id}}
+        # GraphQL multipart request spec. Use a bare requests.post so the session's
+        # default application/json Content-Type doesn't clobber the multipart boundary.
+        multipart = {
+            "operations": (None, json.dumps({"query": query, "variables": variables}), "application/json"),
+            "map": (None, json.dumps({"0": ["variables.input.file"]}), "application/json"),
+            "0": (filename, data, mime),
+        }
+        headers = {
+            "User-Agent": USER_AGENT,
+            "x-client-name": "matters-newsletter-bot",
+            # Apollo Server blocks multipart unless a preflight header is present (CSRF guard).
+            "apollo-require-preflight": "true",
+            "x-apollo-operation-name": "singleFileUpload",
+        }
+        if self.token:
+            headers["x-access-token"] = self.token
+        resp = requests.post(self.api_url, files=multipart, headers=headers, timeout=120)
+        try:
+            body = resp.json()
+        except ValueError:
+            raise MattersError(f"Non-JSON upload response ({resp.status_code}): {resp.text[:300]}")
+        if body.get("errors"):
+            raise MattersError(f"upload error: {body['errors']}")
+        return body["data"]["singleFileUpload"]

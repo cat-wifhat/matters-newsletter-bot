@@ -2,3 +2,6 @@
 .venv/
 __pycache__/
 *.pyc
+.DS_Store
+素材/
+sample_cover_*.png

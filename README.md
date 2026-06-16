@@ -1,6 +1,6 @@
-# Matters Newsletter Bot（周報 / 月報）
+# Matters Newsletter Bot（周報 / 雙周報）
 
-自動為 Matters 編製「周報」「月報」草稿的小工具。**與 repost-bot 是兩個獨立專案，互不相干。**
+自動為 Matters 編製「周報」「雙周報」草稿的小工具。**與 repost-bot 是兩個獨立專案，互不相干。**
 
 它只讀取 Matters 自己的公開 GraphQL API，把多篇文章整理成**一張草稿**（內含 @作者
 提及與文章連結），放進指定帳戶的草稿箱。**只整草稿、不會自動發佈** —— 由你檢查後手動發佈。
@@ -10,8 +10,8 @@
 | 類型 | 內容 | 排程 |
 |------|------|------|
 | `weekly`（一周熱門） | 合併七個頻道、過去 7 日的文章，**自己按「拍手＋留言」排序**取前 10，每位作者最多 2 篇，tag 作者 | 每週一 HKT 06:00 |
-| `snapshot`（每日快照） | 記下當日各頻道置頂（綠色 pin）文章到 `state/channel_pins.json`，累積一個月 | 每日 HKT 07:00 |
-| `monthly`（頻道精選） | 列出過去 30 日內**曾被置頂過**的所有文章（讀累積狀態），按頻道分組，tag 作者 | 每月 1 號 HKT 10:00 |
+| `snapshot`（每日快照） | 記下當日各頻道置頂（綠色 pin）文章到 `state/channel_pins.json`，逐日累積 | 每日 HKT 07:00 |
+| `biweekly`（全站熱門＋頻道置頂） | 兩欄目一張稿：①過去 14 日全站熱門前 10 ②過去 14 日內**曾被置頂過**的所有文章，按頻道分組，tag 作者 | 每月 1、15 號 HKT 10:00 |
 
 六個精選頻道：生活事、書音影、旅・居、性別／愛、時事・趨勢、身心靈
 （週熱門排序另含「創作・小說」以擴大覆蓋；如需增減，改 `bot/digest.py` 的
@@ -22,8 +22,8 @@ Matters 官方的 `hottest` feed 偏重「新」而非互動，會漏掉互動�
 本工具改為合併各頻道、用「拍手＋留言」透明計分，數字你可自行核對。
 
 ### 為何頻道精選要每日快照？
-Matters 公開 API 只給「目前置頂」狀態，**沒有 pin 歷史**。綠色 pin 一個月會輪換
-多次，舊的被換走後就查不到。所以靠每日 `snapshot` 記錄，月報才能列出整個月曾被
+Matters 公開 API 只給「目前置頂」狀態，**沒有 pin 歷史**。綠色 pin 會輪換多次，
+舊的被換走後就查不到。所以靠每日 `snapshot` 記錄，雙周報才能列出這兩周內曾被
 pin 過的文。已經換走、且開始累積前的舊 pin 無法追溯。
 
 ## 本機試跑
@@ -33,7 +33,7 @@ pip install -r requirements.txt
 
 # 只在終端機印出內容、不開草稿：
 python -m bot.digest --type weekly --dry-run
-python -m bot.digest --type monthly --dry-run
+python -m bot.digest --type biweekly --dry-run
 
 # 真的開草稿（需要先設定帳戶憑證，見下）：
 cp .env.example .env   # 填入新帳戶 email / password

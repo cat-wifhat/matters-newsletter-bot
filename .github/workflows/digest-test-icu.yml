@@ -9,11 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       type:
-        description: "weekly or monthly"
+        description: "weekly or biweekly"
         required: true
         default: "weekly"
         type: choice
-        options: ["weekly", "monthly"]
+        options: ["weekly", "biweekly"]
       dry_run:
         description: "Dry run (compose only, don't create the draft)"
         required: false

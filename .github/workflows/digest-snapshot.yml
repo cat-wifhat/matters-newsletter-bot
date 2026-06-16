@@ -2,8 +2,8 @@ name: Daily pin snapshot (累積頻道精選)
 
 # Records each channel's currently-pinned articles into state/channel_pins.json
 # every day. Matters' API exposes only the *current* pin (no history), so this
-# daily accumulation is how the monthly digest can list every article pinned
-# during the month — including ones already rotated out.
+# daily accumulation is how the biweekly digest can list every article pinned
+# during the period — including ones already rotated out.
 
 on:
   schedule:

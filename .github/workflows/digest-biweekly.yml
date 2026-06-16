@@ -1,10 +1,10 @@
-name: Monthly digest → Matters draft (頻道精選)
+name: Biweekly digest → Matters draft (全站熱門 + 頻道置頂)
 
 on:
   schedule:
-    # 1st of each month, 02:00 UTC = 10:00 Hong Kong time (UTC+8).
-    # (cron day-of-month is evaluated in UTC.)
-    - cron: "0 2 1 * *"
+    # 1st and 15th of each month, 02:00 UTC = 10:00 Hong Kong time (UTC+8).
+    # Approximates "every two weeks" (cron has no native biweekly).
+    - cron: "0 2 1,15 * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -33,13 +33,13 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Compose monthly digest draft
+      - name: Compose biweekly digest draft
         env:
           # Dedicated newsletter account — add these two repo secrets.
           MATTERS_EMAIL: ${{ secrets.DIGEST_MATTERS_EMAIL }}
           MATTERS_PASSWORD: ${{ secrets.DIGEST_MATTERS_PASSWORD }}
         run: |
-          ARGS="--type monthly --state $STATE_FILE"
+          ARGS="--type biweekly --state $STATE_FILE"
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           python -m bot.digest $ARGS
 
@@ -51,7 +51,7 @@ jobs:
           fi
           git config user.name "newsletter-bot"
           git config user.email "newsletter-bot@users.noreply.github.com"
-          git commit -m "chore: monthly pin state ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+          git commit -m "chore: biweekly pin state ($(date -u +'%Y-%m-%d %H:%M UTC'))"
           for attempt in 1 2 3; do
             if git push; then echo "pushed on attempt $attempt"; exit 0; fi
             echo "push attempt $attempt rejected; rebasing"
