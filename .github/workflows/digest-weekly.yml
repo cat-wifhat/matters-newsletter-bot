@@ -2,9 +2,8 @@ name: Weekly digest → Matters draft (一周熱門)
 
 on:
   schedule:
-    # Monday 06:00 Hong Kong time (UTC+8) = Sunday 22:00 UTC.
-    # Off-peak UTC minute reduces GHA scheduler delay.
-    - cron: "0 22 * * 0"
+    # Wednesday 10:00 Hong Kong time (UTC+8) = Wednesday 02:00 UTC.
+    - cron: "0 2 * * 3"
   workflow_dispatch:
     inputs:
       dry_run:

@@ -27,6 +27,7 @@ import json
 import logging
 import sys
 from html import escape
+from itertools import zip_longest
 from pathlib import Path
 from typing import Optional
 
@@ -60,6 +61,9 @@ WEEKLY_CHANNELS: list[dict[str, str]] = CHANNELS + [
 
 WEEKLY_TAGS = ["Matters週報", "一周熱門"]
 BIWEEKLY_TAGS = ["Matters雙周報", "全站熱門", "頻道精選"]
+
+# 回應（civic.ai #3）：把「廣播」變「對話」，邀請社群提名／補充／糾正下一期。
+CTA_HTML = '<p>覺得有遺珠？歡迎在這篇留言或標註～</p>'
 
 MAX_PER_AUTHOR_WEEKLY = 2  # diversify: cap any one author in the weekly top list
 
@@ -247,8 +251,9 @@ def _article_link(short_hash: str, title: str) -> str:
 
 def render_weekly_html(articles: list[dict], *, days: int) -> str:
     intro = (
-        "<p>這是一份以 AI 製作的 Matters 作者「全站熱門周報」，把複雜的後台算法，"
-        "轉化為人人都看得懂的社群周報。</p>"
+        "<p>這是一份以 AI 製作的 Matters「全站熱門周報」，把複雜的後台算法，"
+        "轉化為人人都看得懂的社群清單。但 AI 不替你決定什麼重要——它只負責把社群的"
+        "拍手與留言，忠實地記錄、整理出來。</p>"
         "<blockquote><p>「文字的迴聲，由你的每一次拍手與留言決定。」</p></blockquote>"
         "<p>這份周報的誕生，是為了記錄過去 7 天內在 Matters 社群中互動最熱烈、最能引起"
         "共鳴的 10 篇佳作。周報打破了頻道的邊界，將「生活事、書音影、旅・居、性別／愛、"
@@ -261,8 +266,10 @@ def render_weekly_html(articles: list[dict], *, days: int) -> str:
         "<li>百花齊放：為了讓更多創作者被看見，每位作者每週最多僅保留 "
         f"{MAX_PER_AUTHOR_WEEKLY} 篇作品入榜。</li>"
         "</ul>"
+        "<p>我們相信：好的演算法應該透明、可核對、向社群負責，是社群這一周互動的鏡子。</p>"
         "<p>這是一份由讀者互動紀錄催生的「全站熱門榜」，感謝每一位用文字點燃思考的創作者，"
         "以及用互動支持好文的你。</p>"
+        + CTA_HTML +
         "<hr>"
     )
     parts = [intro]
@@ -279,7 +286,8 @@ def render_biweekly_html(hot_articles: list[dict],
                          by_channel: list[tuple[dict, list[dict]]], *, days: int) -> str:
     intro = (
         "<p>這是一份以 AI 製作的 Matters 雙周總結，分為「全站熱門雙周報」與「置頂文章雙周報」"
-        "兩個欄目，為大家留下這兩周的閱讀清單。</p>"
+        "兩個欄目，為大家留下這兩周的閱讀清單。但 AI 不替你決定什麼重要——它只負責把社群的"
+        "互動，忠實地記錄、整理出來。</p>"
         "<blockquote><p>「留下一份清單，記住這兩周大家留下的閱讀與思想。」</p></blockquote>"
         "<p>這份雙周報的誕生，是為了記錄過去 14 天內在 Matters 社群中聊得最熱烈，以及在各頻道"
         "曾被推薦過的文章。雙周報將數據與頻道分類呈現，方便大家按圖索驥，回顧這兩周留下來的文字。</p>"
@@ -297,6 +305,8 @@ def render_biweekly_html(hot_articles: list[dict],
         "<li>時光快照：由於網站只會顯示「目前置頂」，沒有歷史紀錄，所以數據 AI 每天都會自動拍下"
         "各頻道的快照，把這兩周內曾出現過的所有置頂文章記下來，累積成這份雙周清單。</li>"
         "</ul>"
+        "<p>我們相信：好的演算法應該透明、可核對、向社群負責，是社群這兩周互動的鏡子。</p>"
+        + CTA_HTML +
         "<hr>"
     )
     parts = [intro]
@@ -339,11 +349,18 @@ def _login_client() -> MattersClient:
     return client
 
 
-def _make_cover(kicker: str, today_iso: str, titles: list[str], theme: str = "purple") -> Optional[bytes]:
-    """Auto-extract keywords and render the cover PNG. Never blocks the draft."""
+def _today_hkt() -> str:
+    """封面顯示用日期：香港時間（UTC+8），讀者所在時區。內部計分／快照仍用 UTC。"""
+    return dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).date().isoformat()
+
+
+def _make_cover(kicker: str, today_iso: str, titles: list[str], theme: str = "riso") -> Optional[bytes]:
+    """Auto-extract keywords and render the collage cover PNG. Never blocks the draft."""
     try:
-        from .cover import keywords, generate
-        return generate(kicker, today_iso.replace("-", " · "), keywords(titles), theme=theme)
+        from .cover import keywords
+        from .collage import generate
+        kws = keywords(titles)[:10]
+        return generate(kicker, today_iso.replace("-", " · "), kws, theme)
     except Exception as e:  # noqa: BLE001 — cover is best-effort
         log.warning("cover generation failed (%s); posting without cover", e)
         return None
@@ -351,7 +368,7 @@ def _make_cover(kicker: str, today_iso: str, titles: list[str], theme: str = "pu
 
 def _post_draft(title: str, content: str, tags: list[str], *,
                 summary: Optional[str] = None, cover_png: Optional[bytes] = None,
-                dry_run: bool) -> None:
+                caption: str = "", dry_run: bool) -> None:
     if dry_run:
         log.info("[DRY-RUN] title: %s", title)
         if summary:
@@ -370,7 +387,8 @@ def _post_draft(title: str, content: str, tags: list[str], *,
         embed = client.upload_asset(cover_png, "embed.png", "embed", draft_id)
         cover_id = cover["id"]
         content = (f'<figure class="image"><img src="{escape(embed["path"])}" '
-                   f'data-asset-id="{escape(embed["id"])}" alt=""><figcaption></figcaption></figure>'
+                   f'data-asset-id="{escape(embed["id"])}" alt="">'
+                   f'<figcaption><span>{escape(caption)}</span></figcaption></figure>'
                    + content)
         log.info("uploaded cover=%s embed=%s", cover["id"], embed["id"])
     client.update_draft(draft_id, title=title, content=content, summary=summary,
@@ -384,12 +402,13 @@ def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10) -> int:
         log.warning("no articles in window; nothing to do")
         return 0
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
-    title = f"Matters 一周熱門文章 ｜ {today}"
-    summary = (f"周報列出了過去 {days} 日 Matters 各頻道互動最高的 {len(articles)} 篇文章。"
-               "以下是各篇文章的列表。")
+    title = "週報：Matters 一週速報 ｜ 社群熱門文章"
+    summary = (f"由社群的拍手與留言長成——過去 {days} 日 Matters 各頻道互動最高的 "
+               f"{len(articles)} 篇。")
     content = render_weekly_html(articles, days=days)
-    cover_png = _make_cover("Matters ｜ 一周熱門", today, [a["title"] for a in articles])
-    _post_draft(title, content, WEEKLY_TAGS, summary=summary, cover_png=cover_png, dry_run=dry_run)
+    cover_png = _make_cover("一週速報 ｜ 社群熱門文章", _today_hkt(), [a["title"] for a in articles], theme="riso")
+    _post_draft(title, content, WEEKLY_TAGS, summary=summary, cover_png=cover_png,
+                caption="圖中關鍵字由過去七日熱門文章自動擷取", dry_run=dry_run)
     return 0
 
 
@@ -409,12 +428,17 @@ def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14) -> int:
     by_channel = [(c, pinned_within(state, c, days=days, today=today)) for c in CHANNELS]
     # 欄目一：過去 14 天全站熱門（與周報同邏輯，僅天數不同）。
     hot_articles = fetch_weekly_top(days=days, limit=10)
-    title = f"Matters 全站熱門與頻道置頂雙周報 ｜ {today}"
-    summary = (f"雙周報列出了過去 {days} 日 Matters 各頻道互動最高的 {len(hot_articles)} 篇文章，"
-               "以及各頻道編輯置頂過的文章。以下是文章名單。")
+    title = "雙週報：Matters 雙週回顧 ｜ 熱門文章 ＋ 編輯精選"
+    summary = (f"由社群互動長成——過去 {days} 日 Matters 全站熱門 {len(hot_articles)} 篇，"
+               "加各頻道編輯置頂過的文章。")
     content = render_biweekly_html(hot_articles, by_channel, days=days)
-    cover_png = _make_cover("Matters ｜ 雙周報", today, [a["title"] for a in hot_articles], theme="greengold")
-    _post_draft(title, content, BIWEEKLY_TAGS, summary=summary, cover_png=cover_png, dry_run=dry_run)
+    # 封面關鍵字：熱門（欄目一）＋置頂（欄目二）交錯，讓兩欄都被代表到。
+    pinned_titles = [r["title"] for _, rows in by_channel for r in rows]
+    mixed_titles = [t for pair in zip_longest([a["title"] for a in hot_articles], pinned_titles)
+                    for t in pair if t]
+    cover_png = _make_cover("雙週回顧 ｜ 熱門文章 ＋ 編輯精選", _today_hkt(), mixed_titles, theme="earthy")
+    _post_draft(title, content, BIWEEKLY_TAGS, summary=summary, cover_png=cover_png,
+                caption="圖中關鍵字由過去十四日熱門及置頂文章自動擷取", dry_run=dry_run)
     return 0
 
 

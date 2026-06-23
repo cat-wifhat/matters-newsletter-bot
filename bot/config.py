@@ -31,7 +31,26 @@ The "read prod, write icu" setup:
     (leave READ/SITE at defaults so links still point to real matters.town articles)
 """
 import os
+from pathlib import Path
 from urllib.parse import urlparse
+
+
+def _load_dotenv() -> None:
+    """本機方便用：若專案根目錄有 .env，載入其中的 KEY=VALUE（不覆蓋已存在的環境變數，
+    所以雲端 GitHub Secrets 仍優先）。雲端沒有 .env，這段不做事。"""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+_load_dotenv()
 
 _PROD_API = "https://server.matters.news/graphql"
 
