@@ -436,7 +436,7 @@ def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14) -> int:
     pinned_titles = [r["title"] for _, rows in by_channel for r in rows]
     mixed_titles = [t for pair in zip_longest([a["title"] for a in hot_articles], pinned_titles)
                     for t in pair if t]
-    cover_png = _make_cover("雙週回顧 ｜ 熱門文章 ＋ 編輯精選", _today_hkt(), mixed_titles, theme="earthy")
+    cover_png = _make_cover("雙週回顧 ｜ 熱門文章 ＋ 編輯精選", _today_hkt(), mixed_titles, theme="coral")
     _post_draft(title, content, BIWEEKLY_TAGS, summary=summary, cover_png=cover_png,
                 caption="圖中關鍵字由過去十四日熱門及置頂文章自動擷取", dry_run=dry_run)
     return 0
