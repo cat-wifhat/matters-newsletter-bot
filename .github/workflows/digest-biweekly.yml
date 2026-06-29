@@ -2,9 +2,9 @@ name: Biweekly digest → Matters draft (全站熱門 + 頻道置頂)
 
 on:
   schedule:
-    # 1st and 15th of each month, 02:00 UTC = 10:00 Hong Kong time (UTC+8).
-    # Approximates "every two weeks" (cron has no native biweekly).
-    - cron: "0 2 1,15 * *"
+    # Every Monday 02:00 UTC = 10:00 Hong Kong time (UTC+8). The compose step
+    # gates to the 1st & 3rd Monday only (cron has no native "1st/3rd Monday").
+    - cron: "0 2 * * 1"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -39,6 +39,14 @@ jobs:
           MATTERS_EMAIL: ${{ secrets.DIGEST_MATTERS_EMAIL }}
           MATTERS_PASSWORD: ${{ secrets.DIGEST_MATTERS_PASSWORD }}
         run: |
+          # Publish only on the 1st & 3rd Monday (UTC day-of-month 1–7 or 15–21).
+          # Manual (workflow_dispatch) runs are never gated.
+          DOM=$(date -u +%-d)
+          if [ "${{ github.event_name }}" = "schedule" ] && \
+             ! { { [ "$DOM" -ge 1 ] && [ "$DOM" -le 7 ]; } || { [ "$DOM" -ge 15 ] && [ "$DOM" -le 21 ]; }; }; then
+            echo "Scheduled run but not the 1st/3rd Monday (UTC day=$DOM) — skipping."
+            exit 0
+          fi
           ARGS="--type biweekly --state $STATE_FILE"
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           python -m bot.digest $ARGS
