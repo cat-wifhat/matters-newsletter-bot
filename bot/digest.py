@@ -354,6 +354,31 @@ def _today_hkt() -> str:
     return dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).date().isoformat()
 
 
+# 防重複：GitHub 排程不可靠（延遲/丟棄），故每個 workflow 排「主＋備」兩個時段。
+# 發佈成功後記下當日 HKT 日期；若備用時段發現當日已發過同類，就跳過，確保每次只出一份。
+LAST_PUBLISHED_PATH = "state/last_published.json"
+
+
+def _already_published_today(kind: str) -> bool:
+    try:
+        data = json.loads(Path(LAST_PUBLISHED_PATH).read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return False
+    return data.get(kind) == _today_hkt()
+
+
+def _mark_published(kind: str) -> None:
+    p = Path(LAST_PUBLISHED_PATH)
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        data = {}
+    data[kind] = _today_hkt()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
+                 encoding="utf-8")
+
+
 def _make_cover(kicker: str, today_iso: str, titles: list[str], theme: str = "riso") -> Optional[bytes]:
     """Auto-extract keywords and render the collage cover PNG. Never blocks the draft."""
     try:
@@ -397,6 +422,9 @@ def _post_draft(title: str, content: str, tags: list[str], *,
 
 
 def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10) -> int:
+    if not dry_run and _already_published_today("weekly"):
+        log.info("weekly already published today (%s); skipping (backup run)", _today_hkt())
+        return 0
     articles = fetch_weekly_top(days=days, limit=limit)
     if not articles:
         log.warning("no articles in window; nothing to do")
@@ -409,6 +437,8 @@ def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10) -> int:
     cover_png = _make_cover("一週速報 ｜ 社群熱門文章", _today_hkt(), [a["title"] for a in articles], theme="riso")
     _post_draft(title, content, WEEKLY_TAGS, summary=summary, cover_png=cover_png,
                 caption="圖中關鍵字由過去七日熱門文章自動擷取", dry_run=dry_run)
+    if not dry_run:
+        _mark_published("weekly")
     return 0
 
 
@@ -421,6 +451,9 @@ def run_snapshot(*, state_path: str) -> int:
 
 
 def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14) -> int:
+    if not dry_run and _already_published_today("biweekly"):
+        log.info("biweekly already published today (%s); skipping (backup run)", _today_hkt())
+        return 0
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
     # 欄目二：先把今日置頂併入累積狀態（即使狀態空也不會全空），再列兩周置頂。
     state = snapshot_pins(load_state(state_path), today=today)
@@ -439,6 +472,8 @@ def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14) -> int:
     cover_png = _make_cover("雙週回顧 ｜ 熱門文章 ＋ 編輯精選", _today_hkt(), mixed_titles, theme="coral")
     _post_draft(title, content, BIWEEKLY_TAGS, summary=summary, cover_png=cover_png,
                 caption="圖中關鍵字由過去十四日熱門及置頂文章自動擷取", dry_run=dry_run)
+    if not dry_run:
+        _mark_published("biweekly")
     return 0
 
 

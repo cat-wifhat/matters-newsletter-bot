@@ -2,9 +2,11 @@ name: Biweekly digest → Matters draft (全站熱門 + 頻道置頂)
 
 on:
   schedule:
-    # Every Monday 02:00 UTC = 10:00 Hong Kong time (UTC+8). The compose step
-    # gates to the 1st & 3rd Monday only (cron has no native "1st/3rd Monday").
-    - cron: "0 2 * * 1"
+    # Two attempts each Monday, off-peak minutes (GitHub delays/drops :00 runs).
+    # The compose step gates to the 1st & 3rd Monday; a publish marker makes the
+    # 2nd attempt a no-op if the 1st already posted (at most one draft per cycle).
+    - cron: "37 1 * * 1"   # 01:37 UTC = 09:37 HKT (primary)
+    - cron: "37 4 * * 1"   # 04:37 UTC = 12:37 HKT (backup, if primary dropped)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -53,13 +55,13 @@ jobs:
 
       - name: Commit updated pin state
         run: |
-          git add "$STATE_FILE"
-          if git diff --cached --quiet -- "$STATE_FILE"; then
-            echo "$STATE_FILE unchanged"; exit 0
+          git add "$STATE_FILE" state/last_published.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "state unchanged"; exit 0
           fi
           git config user.name "newsletter-bot"
           git config user.email "newsletter-bot@users.noreply.github.com"
-          git commit -m "chore: biweekly pin state ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+          git commit -m "chore: biweekly state ($(date -u +'%Y-%m-%d %H:%M UTC'))"
           for attempt in 1 2 3; do
             if git push; then echo "pushed on attempt $attempt"; exit 0; fi
             echo "push attempt $attempt rejected; rebasing"
