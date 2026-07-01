@@ -32,7 +32,9 @@ cron 以 UTC 計，每日快照 07:00 HKT = 23:00 UTC。**週報／雙週報都�
   `update_draft`（含 `cover` 欄位）/ `upload_asset`（圖片）。**無發佈**。打 `MATTERS_WRITE_ENDPOINT`。
 - `digest.py` — 主程式。匿名讀取（打 `MATTERS_READ_ENDPOINT`）→ 計分／快照 →
   組 HTML →（視情況）生成封面圖、登入寫草稿。`main()` 為 CLI 入口。
-- `cover.py` — 生成 1200×1200 關鍵字雲圖封面（jieba 抽詞、Noto Sans TC、官方 logo）。
+- `cover.py` — 封面**關鍵字抽取**（`keywords()`：zhconv＋jieba TF-IDF＋fonttools 缺字檢查；輸出繁體、零豆腐字）。
+  舊的雲圖渲染函式已停用（改由 `collage.py`）。
+- `collage.py` — 封面**渲染**：撕貼卡片拼貼（`riso`/`coral`/`earthy`/`vintage` 主題）。設計詳見 `docs/封面設計說明.md`。
 - `assets/` — 封面用的字體（`NotoSansTC.ttf`）與白色 Matters logo。
 
 資料流：**匿名讀取 SOURCE 環境** → 組稿 →（非 dry-run 才）**登入並寫到 DESTINATION 環境**。
@@ -57,11 +59,12 @@ cron 以 UTC 計，每日快照 07:00 HKT = 23:00 UTC。**週報／雙週報都�
 4. **host 白名單**（`ALLOWED_API_HOSTS`）：read/write 只接受
    `server.matters.news / .town / .icu`，打錯網址直接中止，避免把帳號憑證送到未知伺服器。
 
-5. **封面圖（`cover.py`）**：周報／雙周報自動生成關鍵字雲圖，掛上草稿封面（`cover`）＋內文首圖
-   （`embed`）。關鍵字一律**繁體**（zhconv，避免簡體缺字成豆腐）＋ TF-IDF 抽顯著詞（避免破碎語意）
-   ＋ fonttools 缺字檢查（丟棄字體渲染不出的詞）。設計鎖定，勿亂改。**上傳兩個坑**：
-   `singleFileUpload`（multipart）要加 header `apollo-require-preflight: true`；內文 `<figure class="image">`
-   內**必須有 `<figcaption>`** 否則 putDraft 崩。AssetType 用 `cover`/`embed`、EntityType 用 `draft`。
+5. **封面圖（撕貼卡片拼貼）**：周報／雙周報自動生成**拼貼**封面（渲染 `collage.py`、抽字 `cover.py`），
+   掛上草稿封面（`cover`）＋內文首圖（`embed`）。週報用 `riso`（孔版紅藍）、雙周報用 `coral`。關鍵字一律
+   **繁體**（zhconv，避免簡體缺字成豆腐）＋ TF-IDF 抽顯著詞（避免破碎語意）＋ fonttools 缺字檢查（丟棄渲染不出的詞）。
+   **設計鎖定，改動前先讀 `docs/封面設計說明.md`**。**上傳兩個坑**：`singleFileUpload`（multipart）要加 header
+   `apollo-require-preflight: true`；內文 `<figure class="image">` 內**必須有 `<figcaption>`** 否則 putDraft 崩。
+   AssetType 用 `cover`/`embed`、EntityType 用 `draft`。
 
 6. **icu 與正式站獨立**：帳戶不共用，需在 matters.icu 另註冊測試帳戶。被 tag 的正式站
    作者**不會收到通知**（草稿從不發佈，@提及只在發佈時通知，且兩系統無法跨系統通知）。
