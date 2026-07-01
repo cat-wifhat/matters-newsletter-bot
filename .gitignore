@@ -6,3 +6,4 @@ __pycache__/
 素材/
 sample_cover_*.png
 sample_collage*.png
+scripts/          # 封面拼貼原型草稿（已被 bot/collage.py 取代，僅本機參考）
