@@ -3,7 +3,7 @@ name: Weekly digest → Matters draft (一周熱門)
 on:
   schedule:
     # Two attempts each Wednesday, off-peak minutes (GitHub delays/drops :00 runs).
-    # A publish marker (state/last_published.json) makes the 2nd a no-op if the
+    # A publish marker (state/published-weekly.json) makes the 2nd a no-op if the
     # 1st already posted — so at most one draft per week.
     - cron: "37 1 * * 3"   # 01:37 UTC = 09:37 HKT (primary)
     - cron: "37 4 * * 3"   # 04:37 UTC = 12:37 HKT (backup, if primary dropped)
@@ -14,7 +14,7 @@ on:
         required: false
         default: "false"
 
-# Commits the publish marker (state/last_published.json) back to the repo.
+# Commits the publish marker (state/published-weekly.json) back to the repo.
 permissions:
   contents: write
 
