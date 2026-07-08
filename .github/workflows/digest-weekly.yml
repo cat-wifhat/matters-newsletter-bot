@@ -40,6 +40,8 @@ jobs:
         run: |
           ARGS="--type weekly"
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          # 手動觸發＝刻意重推，繞過當日防重複；排程（主/備）不帶 --force 仍防重複。
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then ARGS="$ARGS --force"; fi
           python -m bot.digest $ARGS
 
       - name: Commit publish marker

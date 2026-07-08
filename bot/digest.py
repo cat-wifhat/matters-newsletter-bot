@@ -149,6 +149,8 @@ def fetch_weekly_top(days: int = 7, limit: int = 10, *, max_pages: int = 6) -> l
     pool: dict[str, dict] = {}
     for ch in WEEKLY_CHANNELS:
         for node in _fetch_channel_articles(ch, cutoff=cutoff, max_pages=max_pages):
+            if node["appreciationsReceivedTotal"] <= 0:
+                continue  # 無拍手不算熱門（多為留言區／自留言／bot），只靠留言衝上榜
             pool[node["shortHash"]] = node  # dedupe across channels
     ranked = sorted(pool.values(), key=_score, reverse=True)
 
@@ -419,8 +421,8 @@ def _post_draft(title: str, content: str, tags: list[str], *,
     log.info("draft saved (left UNPUBLISHED in draft box): %s", title)
 
 
-def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10) -> int:
-    if not dry_run and _already_published_today("weekly"):
+def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10, force: bool = False) -> int:
+    if not dry_run and not force and _already_published_today("weekly"):
         log.info("weekly already published today (%s); skipping (backup run)", _today_hkt())
         return 0
     articles = fetch_weekly_top(days=days, limit=limit)
@@ -448,8 +450,8 @@ def run_snapshot(*, state_path: str) -> int:
     return 0
 
 
-def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14) -> int:
-    if not dry_run and _already_published_today("biweekly"):
+def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14, force: bool = False) -> int:
+    if not dry_run and not force and _already_published_today("biweekly"):
         log.info("biweekly already published today (%s); skipping (backup run)", _today_hkt())
         return 0
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
@@ -484,6 +486,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="weekly lookback (default 7) / biweekly window (default 14).")
     parser.add_argument("--limit", type=int, default=10, help="Weekly: max articles.")
     parser.add_argument("--state", default=DEFAULT_STATE, help="Pin-snapshot state JSON path.")
+    parser.add_argument("--force", action="store_true",
+                        help="Bypass the same-day dedup guard (for intentional manual re-posts).")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO,
@@ -495,10 +499,10 @@ def main(argv: Optional[list[str]] = None) -> int:
              config.MATTERS_SITE)
     dry_run = args.dry_run or config.DRY_RUN
     if args.type == "weekly":
-        return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit)
+        return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit, force=args.force)
     if args.type == "snapshot":
         return run_snapshot(state_path=args.state)
-    return run_biweekly(dry_run=dry_run, state_path=args.state, days=args.days or 14)
+    return run_biweekly(dry_run=dry_run, state_path=args.state, days=args.days or 14, force=args.force)
 
 
 if __name__ == "__main__":
