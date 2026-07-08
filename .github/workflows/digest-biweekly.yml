@@ -55,7 +55,7 @@ jobs:
 
       - name: Commit updated pin state
         run: |
-          git add "$STATE_FILE" state/last_published.json 2>/dev/null || true
+          git add "$STATE_FILE" state/published-biweekly.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "state unchanged"; exit 0
           fi

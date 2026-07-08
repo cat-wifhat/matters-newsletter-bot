@@ -355,27 +355,25 @@ def _today_hkt() -> str:
 
 
 # 防重複：GitHub 排程不可靠（延遲/丟棄），故每個 workflow 排「主＋備」兩個時段。
-# 發佈成功後記下當日 HKT 日期；若備用時段發現當日已發過同類，就跳過，確保每次只出一份。
-LAST_PUBLISHED_PATH = "state/last_published.json"
+# 發佈成功後記下當日 HKT 日期；備用時段見「當日已發過同類」就跳過，確保每次只出一份。
+# 每種各記各的檔（published-weekly.json / published-biweekly.json），避免週報／雙週報
+# 同時跑時爭寫同一檔造成 git push 衝突（rebase 撞 JSON）。
+def _marker_path(kind: str) -> str:
+    return f"state/published-{kind}.json"
 
 
 def _already_published_today(kind: str) -> bool:
     try:
-        data = json.loads(Path(LAST_PUBLISHED_PATH).read_text(encoding="utf-8"))
+        data = json.loads(Path(_marker_path(kind)).read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError):
         return False
-    return data.get(kind) == _today_hkt()
+    return data.get("date") == _today_hkt()
 
 
 def _mark_published(kind: str) -> None:
-    p = Path(LAST_PUBLISHED_PATH)
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except (FileNotFoundError, ValueError):
-        data = {}
-    data[kind] = _today_hkt()
+    p = Path(_marker_path(kind))
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
+    p.write_text(json.dumps({"date": _today_hkt()}, ensure_ascii=False, indent=2),
                  encoding="utf-8")
 
 

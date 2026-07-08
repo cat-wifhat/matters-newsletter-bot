@@ -44,7 +44,7 @@ jobs:
 
       - name: Commit publish marker
         run: |
-          git add state/last_published.json 2>/dev/null || true
+          git add state/published-weekly.json 2>/dev/null || true
           if git diff --cached --quiet; then echo "marker unchanged"; exit 0; fi
           git config user.name "newsletter-bot"
           git config user.email "newsletter-bot@users.noreply.github.com"
