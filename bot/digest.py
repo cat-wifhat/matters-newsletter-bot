@@ -393,7 +393,7 @@ def _make_cover(kicker: str, today_iso: str, titles: list[str], theme: str = "ri
 
 def _post_draft(title: str, content: str, tags: list[str], *,
                 summary: Optional[str] = None, cover_png: Optional[bytes] = None,
-                caption: str = "", dry_run: bool) -> None:
+                caption: str = "", dry_run: bool, publish: bool = False) -> None:
     if dry_run:
         log.info("[DRY-RUN] title: %s", title)
         if summary:
@@ -418,10 +418,15 @@ def _post_draft(title: str, content: str, tags: list[str], *,
         log.info("uploaded cover=%s embed=%s", cover["id"], embed["id"])
     client.update_draft(draft_id, title=title, content=content, summary=summary,
                         cover=cover_id, tags=tags[:3], license="arr")
-    log.info("draft saved (left UNPUBLISHED in draft box): %s", title)
+    if publish:
+        result = client.publish_draft(draft_id)
+        log.info("PUBLISHED (state=%s): %s", result.get("publishState"), title)
+    else:
+        log.info("draft saved (left UNPUBLISHED in draft box): %s", title)
 
 
-def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10, force: bool = False) -> int:
+def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10, force: bool = False,
+               publish: bool = False) -> int:
     if not dry_run and not force and _already_published_today("weekly"):
         log.info("weekly already published today (%s); skipping (backup run)", _today_hkt())
         return 0
@@ -436,7 +441,7 @@ def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10, force: bool = F
     content = render_weekly_html(articles, days=days)
     cover_png = _make_cover("一週速報 ｜ 社群熱門文章", _today_hkt(), [a["title"] for a in articles], theme="riso")
     _post_draft(title, content, WEEKLY_TAGS, summary=summary, cover_png=cover_png,
-                caption="圖中關鍵字由過去七日熱門文章自動擷取", dry_run=dry_run)
+                caption="圖中關鍵字由過去七日熱門文章自動擷取", dry_run=dry_run, publish=publish)
     if not dry_run:
         _mark_published("weekly")
     return 0
@@ -450,7 +455,8 @@ def run_snapshot(*, state_path: str) -> int:
     return 0
 
 
-def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14, force: bool = False) -> int:
+def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14, force: bool = False,
+                 publish: bool = False) -> int:
     if not dry_run and not force and _already_published_today("biweekly"):
         log.info("biweekly already published today (%s); skipping (backup run)", _today_hkt())
         return 0
@@ -471,7 +477,7 @@ def run_biweekly(*, dry_run: bool, state_path: str, days: int = 14, force: bool 
                     for t in pair if t]
     cover_png = _make_cover("雙週回顧 ｜ 熱門文章 ＋ 編輯精選", _today_hkt(), mixed_titles, theme="coral")
     _post_draft(title, content, BIWEEKLY_TAGS, summary=summary, cover_png=cover_png,
-                caption="圖中關鍵字由過去十四日熱門及置頂文章自動擷取", dry_run=dry_run)
+                caption="圖中關鍵字由過去十四日熱門及置頂文章自動擷取", dry_run=dry_run, publish=publish)
     if not dry_run:
         _mark_published("biweekly")
     return 0
@@ -488,6 +494,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--state", default=DEFAULT_STATE, help="Pin-snapshot state JSON path.")
     parser.add_argument("--force", action="store_true",
                         help="Bypass the same-day dedup guard (for intentional manual re-posts).")
+    parser.add_argument("--publish", action="store_true",
+                        help="Publish the finished draft (public) instead of leaving it in the draft box.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO,
@@ -498,11 +506,14 @@ def main(argv: Optional[list[str]] = None) -> int:
              config.env_label(config.MATTERS_WRITE_ENDPOINT), config.MATTERS_WRITE_ENDPOINT,
              config.MATTERS_SITE)
     dry_run = args.dry_run or config.DRY_RUN
+    publish = args.publish or config.PUBLISH
     if args.type == "weekly":
-        return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit, force=args.force)
+        return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit,
+                          force=args.force, publish=publish)
     if args.type == "snapshot":
         return run_snapshot(state_path=args.state)
-    return run_biweekly(dry_run=dry_run, state_path=args.state, days=args.days or 14, force=args.force)
+    return run_biweekly(dry_run=dry_run, state_path=args.state, days=args.days or 14,
+                        force=args.force, publish=publish)
 
 
 if __name__ == "__main__":

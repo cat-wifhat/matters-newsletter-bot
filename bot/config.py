@@ -77,6 +77,9 @@ MATTERS_EMAIL = os.environ.get("MATTERS_EMAIL", "")
 MATTERS_PASSWORD = os.environ.get("MATTERS_PASSWORD", "")
 
 DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
+# When true, the digest publishes the finished draft (public) instead of leaving
+# it in the draft box. Off by default; enabled via --publish or PUBLISH=true.
+PUBLISH = os.environ.get("PUBLISH", "").lower() in ("1", "true", "yes")
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "

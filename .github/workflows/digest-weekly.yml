@@ -13,6 +13,10 @@ on:
         description: "Dry run (compose only, don't create the draft)"
         required: false
         default: "false"
+      publish:
+        description: "Publish (public). Set false for a draft-only manual run."
+        required: false
+        default: "true"
 
 # Commits the publish marker (state/published-weekly.json) back to the repo.
 permissions:
@@ -39,7 +43,11 @@ jobs:
           MATTERS_PASSWORD: ${{ secrets.DIGEST_MATTERS_PASSWORD }}
         run: |
           ARGS="--type weekly"
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          elif [ "${{ github.event.inputs.publish }}" != "false" ]; then
+            ARGS="$ARGS --publish"   # 自動發佈（公開）；手動觸發設 publish=false 可只存草稿
+          fi
           # 手動觸發＝刻意重推，繞過當日防重複；排程（主/備）不帶 --force 仍防重複。
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then ARGS="$ARGS --force"; fi
           python -m bot.digest $ARGS

@@ -7,7 +7,8 @@
 為 Matters 自動編製「周報／雙周報」**草稿**的小工具。只讀取 Matters 公開 GraphQL
 API，把多篇文章整理成**一張草稿**（含 @作者提及與文章連結），放進指定帳戶的草稿箱。
 
-- **只整草稿、永不自動發佈** —— 由人檢查後手動發佈。
+- **自動發佈**（2026-07-08 起啟用）：組好草稿後直接發佈到公開站。由 `--publish`／`PUBLISH`
+  控制（**程式預設關閉**，週報／雙週報 workflow 已開啟）；手動觸發可設 `publish=false` 只存草稿供檢視。
 - 與 `repost-bot` 是**兩個獨立專案**，互不相干，不共用程式碼。
 - 不爬外部網站，只打 Matters 自家 API。
 
@@ -30,7 +31,8 @@ cron 以 UTC 計，每日快照 07:00 HKT = 23:00 UTC。**週報／雙週報都�
 
 - `config.py` — 環境變數、端點解析、host 白名單。**讀／寫端可分離**（見下）。
 - `matters_client.py` — GraphQL client：`login` / `create_empty_draft` /
-  `update_draft`（含 `cover` 欄位）/ `upload_asset`（圖片）。**無發佈**。打 `MATTERS_WRITE_ENDPOINT`。
+  `update_draft`（含 `cover` 欄位）/ `upload_asset`（圖片）/ `publish_draft`（發佈，由 `--publish` 控制）。
+  打 `MATTERS_WRITE_ENDPOINT`。
 - `digest.py` — 主程式。匿名讀取（打 `MATTERS_READ_ENDPOINT`）→ 計分／快照 →
   組 HTML →（視情況）生成封面圖、登入寫草稿。`main()` 為 CLI 入口。
 - `cover.py` — 封面**關鍵字抽取**（`keywords()`：zhconv＋jieba TF-IDF＋fonttools 缺字檢查；輸出繁體、零豆腐字）。

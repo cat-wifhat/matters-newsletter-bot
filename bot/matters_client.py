@@ -1,7 +1,8 @@
 """Minimal Matters GraphQL client for the newsletter bot.
 
-Only what a digest needs: emailLogin, create an empty draft, and update it with
-content. No image upload, no publish — the digest stops at the draft box.
+What a digest needs: emailLogin, create/update a draft, upload cover images, and
+(optionally) publish the finished draft. Publishing is gated by the caller — the
+digest only publishes when explicitly told to (--publish / PUBLISH=true).
 """
 import json
 import logging
@@ -97,6 +98,17 @@ class MattersClient:
         if tags:
             inp["tags"] = tags
         return self._gql(query, {"input": inp})["putDraft"]
+
+    def publish_draft(self, draft_id: str) -> dict:
+        """Publish a finished draft immediately. Returns {id, publishState, ...}.
+        Matters processes the publish asynchronously, so publishState is usually
+        'pending' right after this call (it becomes 'published' server-side)."""
+        query = """
+        mutation Publish($input: PublishArticleInput!) {
+          publishArticle(input: $input) { id publishState title }
+        }
+        """
+        return self._gql(query, {"input": {"id": draft_id}})["publishArticle"]
 
     def upload_asset(
         self,
