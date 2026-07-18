@@ -2,11 +2,12 @@ name: Biweekly digest → Matters draft (全站熱門 + 頻道置頂)
 
 on:
   schedule:
-    # Two attempts each Monday, off-peak minutes (GitHub delays/drops :00 runs).
-    # The compose step gates to the 1st & 3rd Monday; a publish marker makes the
-    # 2nd attempt a no-op if the 1st already posted (at most one draft per cycle).
-    - cron: "37 1 * * 1"   # 01:37 UTC = 09:37 HKT (primary)
-    - cron: "37 4 * * 1"   # 04:37 UTC = 12:37 HKT (backup, if primary dropped)
+    # Two attempts each Wednesday afternoon (spaced from the weekly's morning slots
+    # so both can land on the same "biweekly Wednesday" without colliding).
+    # The compose step gates to every-other Wednesday (14-day cadence from 2026-07-08);
+    # a publish marker makes the 2nd attempt a no-op if the 1st already posted.
+    - cron: "37 5 * * 3"   # 05:37 UTC = 13:37 HKT (primary)
+    - cron: "37 8 * * 3"   # 08:37 UTC = 16:37 HKT (backup, if primary dropped)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -45,12 +46,13 @@ jobs:
           MATTERS_EMAIL: ${{ secrets.DIGEST_MATTERS_EMAIL }}
           MATTERS_PASSWORD: ${{ secrets.DIGEST_MATTERS_PASSWORD }}
         run: |
-          # Publish only on the 1st & 3rd Monday (UTC day-of-month 1–7 or 15–21).
-          # Manual (workflow_dispatch) runs are never gated.
-          DOM=$(date -u +%-d)
-          if [ "${{ github.event_name }}" = "schedule" ] && \
-             ! { { [ "$DOM" -ge 1 ] && [ "$DOM" -le 7 ]; } || { [ "$DOM" -ge 15 ] && [ "$DOM" -le 21 ]; }; }; then
-            echo "Scheduled run but not the 1st/3rd Monday (UTC day=$DOM) — skipping."
+          # Publish only every OTHER Wednesday — 14-day cadence anchored on the last
+          # biweekly (2026-07-08): next are 07-22, 08-05, 08-19, … The cron fires every
+          # Wednesday; this gate skips the in-between ones. Manual runs are never gated.
+          ANCHOR="2026-07-08"
+          DAYS=$(( ( $(date -u -d "$(date -u +%F)" +%s) - $(date -u -d "$ANCHOR" +%s) ) / 86400 ))
+          if [ "${{ github.event_name }}" = "schedule" ] && [ $(( DAYS % 14 )) -ne 0 ]; then
+            echo "Not a biweekly Wednesday (days since $ANCHOR = $DAYS) — skipping."
             exit 0
           fi
           ARGS="--type biweekly --state $STATE_FILE"
