@@ -2,11 +2,12 @@ name: Weekly digest → Matters draft (一周熱門)
 
 on:
   schedule:
-    # Two attempts each Wednesday, off-peak minutes (GitHub delays/drops :00 runs).
-    # A publish marker (state/published-weekly.json) makes the 2nd a no-op if the
-    # 1st already posted — so at most one draft per week.
-    - cron: "37 1 * * 3"   # 01:37 UTC = 09:37 HKT (primary)
-    - cron: "37 4 * * 3"   # 04:37 UTC = 12:37 HKT (backup, if primary dropped)
+    # Three attempts each Wednesday morning, 1h apart (GitHub often drops scheduled
+    # runs; the publish marker state/published-weekly.json makes every attempt after
+    # the first success a no-op — so at most one post/week, out by ~11:37 HKT latest).
+    - cron: "37 1 * * 3"   # 01:37 UTC = 09:37 HKT
+    - cron: "37 2 * * 3"   # 02:37 UTC = 10:37 HKT
+    - cron: "37 3 * * 3"   # 03:37 UTC = 11:37 HKT
   workflow_dispatch:
     inputs:
       dry_run:
