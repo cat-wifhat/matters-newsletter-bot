@@ -2,13 +2,13 @@ name: Biweekly digest → Matters draft (全站熱門 + 頻道置頂)
 
 on:
   schedule:
-    # Three attempts each Wednesday morning, offset 30min from the weekly (:07 vs :37)
+    # Three attempts each Wednesday morning, offset 30min from the weekly (:30 vs :00)
     # so on a "biweekly Wednesday" both publish in the morning without the same minute.
     # The compose step gates to every-other Wednesday (14-day cadence from 2026-07-08);
     # the publish marker makes attempts after the first success a no-op.
-    - cron: "7 2 * * 3"    # 02:07 UTC = 10:07 HKT
-    - cron: "7 3 * * 3"    # 03:07 UTC = 11:07 HKT
-    - cron: "7 4 * * 3"    # 04:07 UTC = 12:07 HKT
+    - cron: "30 1 * * 3"   # 01:30 UTC = 09:30 HKT
+    - cron: "30 2 * * 3"   # 02:30 UTC = 10:30 HKT
+    - cron: "30 3 * * 3"   # 03:30 UTC = 11:30 HKT
   workflow_dispatch:
     inputs:
       dry_run:
