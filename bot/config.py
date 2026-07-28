@@ -6,7 +6,7 @@ may be the same). It does not scrape external sites.
 
 READ vs WRITE
 -------------
-The bot reads hottest/pinned articles from a SOURCE environment and creates the
+The bot reads the most-interacted articles from a SOURCE environment and creates the
 draft in a DESTINATION environment. These can differ — the key use case:
 
     Read the PRODUCTION site's hot articles, but post the draft to the ICU TEST

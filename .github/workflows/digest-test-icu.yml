@@ -1,6 +1,6 @@
 name: TEST on icu — read prod, post draft to matters.icu
 
-# Testing-period helper: READS hot/pinned articles from the PRODUCTION site, but
+# Testing-period helper: READS hot articles from the PRODUCTION site, but
 # POSTS the compiled draft to the icu TEST environment, so the team (who can log
 # into matters.icu) can review the digest together. Manual trigger only — it does
 # NOT run on a schedule, and does NOT touch the production newsletter account.
@@ -42,6 +42,6 @@ jobs:
           MATTERS_EMAIL: ${{ secrets.ICU_MATTERS_EMAIL }}
           MATTERS_PASSWORD: ${{ secrets.ICU_MATTERS_PASSWORD }}
         run: |
-          ARGS="--type ${{ github.event.inputs.type }} --state state/icu-test-pins.json"
+          ARGS="--type ${{ github.event.inputs.type }}"
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           python -m bot.digest $ARGS

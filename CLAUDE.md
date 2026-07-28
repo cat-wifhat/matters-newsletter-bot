@@ -12,15 +12,18 @@ API，把多篇文章整理成**一張草稿**（含 @作者提及與文章連�
 - 與 `repost-bot` 是**兩個獨立專案**，互不相干，不共用程式碼。
 - 不爬外部網站，只打 Matters 自家 API。
 
-## 三種模式（`python -m bot.digest --type ...`）
+## 兩種模式（`python -m bot.digest --type ...`）
 
 | 模式 | 內容 | 排程（HKT） | Workflow |
 |------|------|------|------|
-| `weekly` | 合併七個頻道、過去 7 日文章，按「拍手＋留言」排序取前 10，每作者≤2 篇，tag 作者 | 每週三 10:00 | `digest-weekly.yml` |
-| `snapshot` | 記錄當日各頻道置頂（綠色 pin）文章到 `state/channel_pins.json`，逐日累積 | 每日 07:00 | `digest-snapshot.yml` |
-| `biweekly` | 兩欄目一張稿：①過去 14 日全站熱門前 10（同 weekly 邏輯）②過去 14 日內**曾被置頂過**的所有文章，按頻道分組。先補當日快照、tag 作者 | 隔週三上午（與週報同日、錯開）| `digest-biweekly.yml` |
+| `weekly` | 合併七個頻道、過去 7 日文章，按「拍手＋留言」排序取前 10，每作者≤2 篇，tag 作者 | 每週三上午 | `digest-weekly.yml` |
+| `biweekly` | 同 weekly 邏輯，僅時窗改過去 14 日，取全站互動最高前 10，tag 作者 | 隔週三上午（與週報同日、錯開）| `digest-biweekly.yml` |
 
-cron 以 UTC 計，每日快照 07:00 HKT = 23:00 UTC。因 GitHub 排程常延遲甚至丟棄整點附近的 run，
+> **2026-07 簡化**：原本雙週報的「頻道置頂精選」欄目、以及支撐它的每日 `snapshot` 快照
+> （`digest-snapshot.yml`、`state/channel_pins.json`）**已全部移除**——因負責置頂的編輯離任、不再 pin 文。
+> 雙週報現與週報同樣是「純社群互動熱門」，只差時窗（14 日 vs 7 日）。
+
+cron 以 UTC 計。因 GitHub 排程常延遲甚至丟棄整點附近的 run，
 **週報／雙週報各在週三上午排「3 次錯開嘗試」（1 小時一次）**：週報 01:00／02:00／03:00 UTC
 （09:00／10:00／11:00 HKT）；雙週報 01:30／02:30／03:30 UTC（09:30／10:30／11:30 HKT，與週報錯開 30 分）。
 第一次成功後，其餘因「本日已發」自動跳過 → 最晚中午前一定出、且不重複。
@@ -35,8 +38,8 @@ cron 以 UTC 計，每日快照 07:00 HKT = 23:00 UTC。因 GitHub 排程常延�
 - `matters_client.py` — GraphQL client：`login` / `create_empty_draft` /
   `update_draft`（含 `cover` 欄位）/ `upload_asset`（圖片）/ `publish_draft`（發佈，由 `--publish` 控制）。
   打 `MATTERS_WRITE_ENDPOINT`。
-- `digest.py` — 主程式。匿名讀取（打 `MATTERS_READ_ENDPOINT`）→ 計分／快照 →
-  組 HTML →（視情況）生成封面圖、登入寫草稿。`main()` 為 CLI 入口。
+- `digest.py` — 主程式。匿名讀取（打 `MATTERS_READ_ENDPOINT`）→ 計分 →
+  組 HTML →（視情況）生成封面圖、登入寫草稿／發佈。`main()` 為 CLI 入口。
 - `cover.py` — 封面**關鍵字抽取**（`keywords()`：zhconv＋jieba TF-IDF＋fonttools 缺字檢查；輸出繁體、零豆腐字）。
   舊的雲圖渲染函式已停用（改由 `collage.py`）。
 - `collage.py` — 封面**渲染**：撕貼卡片拼貼（`riso`/`coral`/`earthy`/`vintage` 主題）。設計詳見 `docs/封面設計說明.md`。
@@ -51,39 +54,33 @@ cron 以 UTC 計，每日快照 07:00 HKT = 23:00 UTC。因 GitHub 排程常延�
    （👏 ≥ 1）**——零拍手（僅靠留言衝分的留言區／自留言／bot）不列入（`fetch_weekly_top` 濾除）。
    評選準則正式記於 `CRITERIA.md`（視為憑證，改動會留 git 紀錄）。
 
-2. **頻道精選靠每日快照累積**：Matters 公開 API 只給「目前置頂」狀態、**無 pin 歷史**。
-   綠色 pin 會輪換多次，舊的被換走就查不到。故 `snapshot` 每日記錄，`biweekly`
-   據累積狀態列最近 14 日。**啟用快照之前**就被換走的舊 pin 無法追溯。
-
-3. **讀／寫端分離**：可從正式站讀真實熱門文，但把草稿貼到 icu 測試站給團隊檢視。
+2. **讀／寫端分離**：可從正式站讀真實熱門文，但把草稿貼到 icu 測試站給團隊檢視。
    - `MATTERS_READ_ENDPOINT` — 抓資料來源（預設 `server.matters.news`）
    - `MATTERS_WRITE_ENDPOINT` — 草稿目的地＋登入帳戶（預設＝read）
    - `MATTERS_SITE` — 文章連結網址（預設 `https://matters.town`，指向文章真正所在）
    - `MATTERS_GRAPHQL_ENDPOINT` — back-compat：未設上述兩者時同時設定 read＋write
    - 「讀正式站、寫 icu」只需設 `MATTERS_WRITE_ENDPOINT`，read/site 留預設。
 
-4. **host 白名單**（`ALLOWED_API_HOSTS`）：read/write 只接受
+3. **host 白名單**（`ALLOWED_API_HOSTS`）：read/write 只接受
    `server.matters.news / .town / .icu`，打錯網址直接中止，避免把帳號憑證送到未知伺服器。
 
-5. **封面圖（撕貼卡片拼貼）**：周報／雙周報自動生成**拼貼**封面（渲染 `collage.py`、抽字 `cover.py`），
+4. **封面圖（撕貼卡片拼貼）**：周報／雙周報自動生成**拼貼**封面（渲染 `collage.py`、抽字 `cover.py`），
    掛上草稿封面（`cover`）＋內文首圖（`embed`）。週報用 `riso`（孔版紅藍）、雙周報用 `coral`。關鍵字一律
    **繁體**（zhconv，避免簡體缺字成豆腐）＋ TF-IDF 抽顯著詞（避免破碎語意）＋ fonttools 缺字檢查（丟棄渲染不出的詞）。
    **設計鎖定，改動前先讀 `docs/封面設計說明.md`**。**上傳兩個坑**：`singleFileUpload`（multipart）要加 header
    `apollo-require-preflight: true`；內文 `<figure class="image">` 內**必須有 `<figcaption>`** 否則 putDraft 崩。
    AssetType 用 `cover`/`embed`、EntityType 用 `draft`。
 
-6. **icu 與正式站獨立**：帳戶不共用，需在 matters.icu 另註冊測試帳戶。被 tag 的正式站
-   作者**不會收到通知**（草稿從不發佈，@提及只在發佈時通知，且兩系統無法跨系統通知）。
+5. **icu 與正式站獨立**：帳戶不共用，需在 matters.icu 另註冊測試帳戶。icu 測試只存草稿、不發佈，
+   被 tag 的作者不會收到通知（@提及只在發佈時通知，且兩系統無法跨系統通知）。
 
 ## 慣例
 
-- **頻道清單**改 `bot/digest.py` 的 `CHANNELS`（雙周報置頂欄六頻道）/ `WEEKLY_CHANNELS`
-  （週報與雙周報熱門欄另含「創作・小說」共七頻道）。頻道 id 為 base64 GraphQL node id，註解附解碼值。
+- **頻道清單**改 `bot/digest.py` 的 `WEEKLY_CHANNELS`（週報與雙週報共用的七個頻道，含「創作・小說」）。
+  頻道 id 為 base64 GraphQL node id，註解附解碼值。
 - **時間一律 UTC**；日期字串用 ISO `YYYY-MM-DD`。
-- **狀態檔** `state/channel_pins.json` 由 snapshot/biweekly workflow 自動 commit 回倉庫
-  （`permissions: contents: write` + 失敗重試 rebase）。結構：
-  `{ channel_id: { shortHash: {title, author, first_seen, last_seen} } }`，
-  超過 `PIN_RETENTION_DAYS`（35 天）未見即清除。icu 測試用獨立的 `state/icu-test-pins.json`。
+- **狀態檔** `state/published-weekly.json`／`published-biweekly.json`（防重複標記，各記當日 HKT 日期）
+  由週報／雙週報 workflow 自動 commit 回倉庫（`permissions: contents: write` + 失敗重試 rebase）。
 - **憑證**：雲端跑用 GitHub repo secrets（`DIGEST_MATTERS_EMAIL/PASSWORD`；icu 測試用
   `ICU_MATTERS_EMAIL/PASSWORD`），**不要**進 `.env`。本機跑才用 `.env`（已 gitignore）。
 - **依賴**：`requests`（API）＋封面圖用的 `Pillow`/`jieba`/`zhconv`/`fonttools`（見
@@ -107,6 +104,5 @@ python -m bot.digest --type weekly
 
 ## 已知限制
 
-- 頻道精選的 pin 歷史只能「從開始快照後」累積，無法回溯。
 - 「兩周內新人歡迎」**未實作**：公開 API 無「全站所有註冊用戶」查詢，且最新文章 feed
   充斥 SEO／賭博垃圾帳號，需嚴格過濾才可能做。

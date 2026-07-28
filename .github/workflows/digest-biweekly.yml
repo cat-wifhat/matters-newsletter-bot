@@ -1,4 +1,4 @@
-name: Biweekly digest → Matters draft (全站熱門 + 頻道置頂)
+name: Biweekly digest → Matters draft (全站熱門)
 
 on:
   schedule:
@@ -20,12 +20,9 @@ on:
         required: false
         default: "true"
 
-# Folds today's pins into the accumulated state and commits it back.
+# Commits the publish marker (state/published-biweekly.json) back to the repo.
 permissions:
   contents: write
-
-env:
-  STATE_FILE: state/channel_pins.json
 
 jobs:
   digest:
@@ -56,7 +53,7 @@ jobs:
             echo "Not a biweekly Wednesday (days since $ANCHOR = $DAYS) — skipping."
             exit 0
           fi
-          ARGS="--type biweekly --state $STATE_FILE"
+          ARGS="--type biweekly"
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"
           elif [ "${{ github.event.inputs.publish }}" != "false" ]; then
@@ -66,15 +63,15 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then ARGS="$ARGS --force"; fi
           python -m bot.digest $ARGS
 
-      - name: Commit updated pin state
+      - name: Commit publish marker
         run: |
-          git add "$STATE_FILE" state/published-biweekly.json 2>/dev/null || true
+          git add state/published-biweekly.json 2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "state unchanged"; exit 0
+            echo "marker unchanged"; exit 0
           fi
           git config user.name "newsletter-bot"
           git config user.email "newsletter-bot@users.noreply.github.com"
-          git commit -m "chore: biweekly state ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+          git commit -m "chore: biweekly publish marker ($(date -u +'%Y-%m-%d %H:%M UTC'))"
           for attempt in 1 2 3; do
             if git push; then echo "pushed on attempt $attempt"; exit 0; fi
             echo "push attempt $attempt rejected; rebasing"
