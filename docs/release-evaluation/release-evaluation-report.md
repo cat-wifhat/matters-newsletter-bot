@@ -2,6 +2,10 @@
 
 > 依 `thematters/matters-release-evaluation-agent` 的 release-evaluation-report 範本填寫。
 > 讀取側證據為實跑結果；寫入側（icu）標記為 PENDING，待用 icu 測試帳戶補齊。
+>
+> ⚠️ **本報告為 2026-06-14 當時快照**，之後 bot 有多次變更（雙週報移除「置頂精選」欄與每日快照、
+> 啟用自動發佈、改週三出刊等）。**最新狀態以 `CLAUDE.md` 與 `docs/自動化運維手冊.md` 為準**；
+> 本歷史報告刻意保留原貌、不逐項回填。
 
 ## Summary
 

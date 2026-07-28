@@ -247,7 +247,7 @@ def _login_client() -> MattersClient:
 
 
 def _today_hkt() -> str:
-    """封面顯示用日期：香港時間（UTC+8），讀者所在時區。內部計分／快照仍用 UTC。"""
+    """封面顯示用日期：香港時間（UTC+8），讀者所在時區。內部計分／時窗仍用 UTC。"""
     return dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).date().isoformat()
 
 
