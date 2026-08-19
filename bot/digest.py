@@ -1,15 +1,13 @@
-"""Weekly / biweekly Matters digest — compiles one draft from many articles.
+"""Weekly Matters digest — compiles one draft from many articles.
 
 Reads Matters' public GraphQL API, assembles a *single* draft listing the site's
 most-interacted articles with @mentions of their authors, generates a collage
 cover, and (with --publish / PUBLISH=true) publishes it to the public site.
 
-Two modes:
-  weekly   — top articles of the past 7 days, ranked transparently by
-             (claps + comments) over the union of the seven topic channels,
-             top 10, max 2 per author, must have ≥1 clap.
-  biweekly — same logic, 14-day window. (The old channel-pin "精選" column and
-             its supporting daily snapshot were removed in 2026-07.)
+Weekly: top articles of the past 7 days, ranked transparently by (claps +
+comments) over the union of the seven topic channels, top 10, max 2 per author,
+must have ≥1 clap. (The biweekly digest — and earlier its channel-pin "精選"
+column and daily snapshot — were retired in 2026-07; only the weekly remains.)
 
 Reads need no auth; we log in only to post/publish. Credentials come from
 MATTERS_EMAIL / MATTERS_PASSWORD env vars (the workflow maps the dedicated
@@ -34,8 +32,8 @@ from .matters_client import MattersClient
 log = logging.getLogger("digest")
 
 # All seven topic channels (base64 GraphQL node ids; decode to "TopicChannel:<n>").
-# Weekly and biweekly both rank interaction over the union of these channels —
-# channels exclude the SEO/spam noise that pollutes the raw newest feed.
+# The weekly ranks interaction over the union of these channels — channels exclude
+# the SEO/spam noise that pollutes the raw newest feed.
 WEEKLY_CHANNELS: list[dict[str, str]] = [
     {"name": "生活事", "id": "VG9waWNDaGFubmVsOjE1"},    # TopicChannel:15
     {"name": "書音影", "id": "VG9waWNDaGFubmVsOjk="},     # TopicChannel:9
@@ -47,7 +45,6 @@ WEEKLY_CHANNELS: list[dict[str, str]] = [
 ]
 
 WEEKLY_TAGS = ["Matters週報", "一周熱門"]
-BIWEEKLY_TAGS = ["Matters雙周報", "全站熱門", "社群熱門"]
 
 # 回應（civic.ai #3）：把「廣播」變「對話」，邀請社群提名／補充／糾正下一期。
 CTA_HTML = '<p>覺得有遺珠？歡迎在這篇留言或標註～</p>'
@@ -206,36 +203,6 @@ def render_weekly_html(articles: list[dict], *, days: int) -> str:
     return "".join(parts)
 
 
-def render_biweekly_html(hot_articles: list[dict], *, days: int) -> str:
-    intro = (
-        "<p>這是一份以 AI 製作的 Matters「全站熱門雙週報」，綜合數據算法，"
-        "轉化為一份社群清單。但 AI 不替你決定什麼重要——它只負責把社群的"
-        "拍手與留言，忠實地記錄、整理出來。</p>"
-        "<blockquote><p>「留下一份清單，記住這兩周大家留下的閱讀與思想。」</p></blockquote>"
-        "<p>這份雙週報的誕生，是為了記錄過去 14 天內在 Matters 社群中互動最熱烈、最能引起"
-        "共鳴的 10 篇文章。雙週報打破了頻道的邊界，將「生活事」、「書音影」、「旅・居」、「性別／愛」、"
-        "「時事・趨勢」、「身心靈」、「創作・小說」這七大頻道的數據合併，為大家打包精選。</p>"
-        "<p><strong>📊 雙週報是怎麼挑選的？</strong></p>"
-        "<ul>"
-        "<li>時間限定：只計算過去 14 天內發表的文章。</li>"
-        "<li>社區迴響：雙週報看到的是文友之間的走動。你給的每一記拍手（👏）"
-        "和留下的每一則留言（💬）都是 1 次紀錄。</li>"
-        f"<li>百花齊放：為了讓更多創作者被看見，每位作者最多僅保留 {MAX_PER_AUTHOR_WEEKLY} 篇作品入榜。</li>"
-        "</ul>"
-        "<p>我們相信：好的演算法應該透明、可核對、向社群負責，是社群這兩周互動的鏡子。</p>"
-        + CTA_HTML +
-        "<hr>"
-    )
-    parts = [intro]
-    for i, n in enumerate(hot_articles, 1):
-        stats = f'👏 {n["appreciationsReceivedTotal"]} ・ 💬 {n["commentCount"]}'
-        parts.append(
-            f"<p>{i}. {_article_link(n['shortHash'], n['title'])}<br>"
-            f"by {_mention(n['author'])}　{stats}</p>"
-        )
-    return "".join(parts)
-
-
 # ---- run ----
 
 def _login_client() -> MattersClient:
@@ -251,10 +218,9 @@ def _today_hkt() -> str:
     return dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).date().isoformat()
 
 
-# 防重複：GitHub 排程不可靠（延遲/丟棄），故每個 workflow 排「主＋備」兩個時段。
-# 發佈成功後記下當日 HKT 日期；備用時段見「當日已發過同類」就跳過，確保每次只出一份。
-# 每種各記各的檔（published-weekly.json / published-biweekly.json），避免週報／雙週報
-# 同時跑時爭寫同一檔造成 git push 衝突（rebase 撞 JSON）。
+# 防重複：GitHub 排程不可靠（延遲/丟棄），故 workflow 每週三上午排 3 次錯開嘗試。
+# 發佈成功後在 state/published-weekly.json 記下當日 HKT 日期；其後的嘗試見「當日已發」
+# 就跳過，確保每週只出一份。（kind 目前只有 "weekly"。）
 def _marker_path(kind: str) -> str:
     return f"state/published-{kind}.json"
 
@@ -342,36 +308,14 @@ def run_weekly(*, dry_run: bool, days: int = 7, limit: int = 10, force: bool = F
     return 0
 
 
-def run_biweekly(*, dry_run: bool, days: int = 14, force: bool = False,
-                 publish: bool = False) -> int:
-    if not dry_run and not force and _already_published_today("biweekly"):
-        log.info("biweekly already published today (%s); skipping (backup run)", _today_hkt())
-        return 0
-    # 過去 14 天全站互動最高（與週報同邏輯，僅天數不同）。
-    hot_articles = fetch_weekly_top(days=days, limit=10)
-    if not hot_articles:
-        log.warning("no articles in window; nothing to do")
-        return 0
-    title = "雙週報：Matters 雙週回顧 ｜ 社群熱門文章"
-    summary = (f"由社群的拍手與留言長成——過去 {days} 日 Matters 各頻道互動最高的 "
-               f"{len(hot_articles)} 篇。")
-    content = render_biweekly_html(hot_articles, days=days)
-    cover_png = _make_cover("雙週回顧 ｜ 社群熱門文章", _today_hkt(),
-                            [a["title"] for a in hot_articles], theme="coral")
-    _post_draft(title, content, BIWEEKLY_TAGS, summary=summary, cover_png=cover_png,
-                caption="圖中關鍵字由過去十四日熱門文章自動擷取", dry_run=dry_run, publish=publish)
-    if not dry_run:
-        _mark_published("biweekly")
-    return 0
-
-
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Compile a Matters digest draft.")
-    parser.add_argument("--type", required=True, choices=["weekly", "biweekly"])
+    parser.add_argument("--type", default="weekly", choices=["weekly"],
+                        help="Only 'weekly' remains (biweekly retired 2026-07).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the composed draft instead of posting.")
     parser.add_argument("--days", type=int, default=None,
-                        help="weekly lookback (default 7) / biweekly window (default 14).")
+                        help="Weekly lookback window in days (default 7).")
     parser.add_argument("--limit", type=int, default=10, help="Weekly: max articles.")
     parser.add_argument("--force", action="store_true",
                         help="Bypass the same-day dedup guard (for intentional manual re-posts).")
@@ -388,11 +332,8 @@ def main(argv: Optional[list[str]] = None) -> int:
              config.MATTERS_SITE)
     dry_run = args.dry_run or config.DRY_RUN
     publish = args.publish or config.PUBLISH
-    if args.type == "weekly":
-        return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit,
-                          force=args.force, publish=publish)
-    return run_biweekly(dry_run=dry_run, days=args.days or 14,
-                        force=args.force, publish=publish)
+    return run_weekly(dry_run=dry_run, days=args.days or 7, limit=args.limit,
+                      force=args.force, publish=publish)
 
 
 if __name__ == "__main__":

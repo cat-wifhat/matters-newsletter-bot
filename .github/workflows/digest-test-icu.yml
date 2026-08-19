@@ -8,12 +8,6 @@ name: TEST on icu — read prod, post draft to matters.icu
 on:
   workflow_dispatch:
     inputs:
-      type:
-        description: "weekly or biweekly"
-        required: true
-        default: "weekly"
-        type: choice
-        options: ["weekly", "biweekly"]
       dry_run:
         description: "Dry run (compose only, don't create the draft)"
         required: false
@@ -42,6 +36,6 @@ jobs:
           MATTERS_EMAIL: ${{ secrets.ICU_MATTERS_EMAIL }}
           MATTERS_PASSWORD: ${{ secrets.ICU_MATTERS_PASSWORD }}
         run: |
-          ARGS="--type ${{ github.event.inputs.type }}"
+          ARGS="--type weekly"
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           python -m bot.digest $ARGS

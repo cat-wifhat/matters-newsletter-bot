@@ -1,20 +1,19 @@
-# Matters Newsletter Bot（周報 / 雙周報）
+# Matters Newsletter Bot（周報）
 
-自動為 Matters 編製「周報」「雙周報」草稿的小工具。**與 repost-bot 是兩個獨立專案，互不相干。**
+自動為 Matters 編製「周報」草稿的小工具。**與 repost-bot 是兩個獨立專案，互不相干。**
 
 它只讀取 Matters 自己的公開 GraphQL API，把多篇文章整理成**一張草稿**（內含 @作者
 提及與文章連結）。**2026-07-08 起自動發佈到公開站**（由 `--publish`／`PUBLISH` 控制，程式預設關、
-週報／雙週報 workflow 已開啟；手動觸發可設 `publish=false` 只存草稿供檢視）。
+週報 workflow 已開啟；手動觸發可設 `publish=false` 只存草稿供檢視）。
 
-## 兩種模式
+## 一種模式
 
 | 類型 | 內容 | 排程 |
 |------|------|------|
 | `weekly`（一周熱門） | 合併七個頻道、過去 7 日的文章，**自己按「拍手＋留言」排序**取前 10（**須 👏≥1**），每位作者最多 2 篇，tag 作者 | 每週三 HKT 上午（3 次錯開嘗試）|
-| `biweekly`（雙周熱門） | 同 weekly 邏輯，僅時窗改過去 14 日，取全站互動最高前 10，tag 作者 | 隔週的週三 HKT 上午（與週報同日、錯開時段）|
 
-> **2026-07 簡化**：原雙週報的「頻道置頂精選」欄目與支撐它的每日 `snapshot` 快照已**移除**
-> （負責置頂的編輯離任、不再 pin 文）。雙週報現與週報同為「純社群互動熱門」，只差時窗。
+> **2026-07 簡化**：曾經的「頻道置頂精選」欄目與支撐它的每日 `snapshot` 快照已**移除**
+> （負責置頂的編輯離任、不再 pin 文）。
 
 七個頻道：生活事、書音影、旅・居、性別／愛、時事・趨勢、身心靈、創作・小說
 （如需增減，改 `bot/digest.py` 的 `WEEKLY_CHANNELS`）。
@@ -31,7 +30,6 @@ pip install -r requirements.txt
 
 # 只在終端機印出內容、不開草稿：
 python -m bot.digest --type weekly --dry-run
-python -m bot.digest --type biweekly --dry-run
 
 # 真的開草稿（需要先設定帳戶憑證，見下）：
 cp .env.example .env   # 填入新帳戶 email / password
@@ -78,7 +76,7 @@ python -m bot.digest --type weekly
 
 ## GitHub Actions（自動排程）
 
-兩個 workflow 在雲端按排程執行，所以憑證要存在 **GitHub repo secrets**，不是本機 `.env`：
+週報 workflow 在雲端按排程執行，所以憑證要存在 **GitHub repo secrets**，不是本機 `.env`：
 
 1. repo → Settings → Secrets and variables → Actions → New repository secret
 2. 新增 `DIGEST_MATTERS_EMAIL`（新帳戶電郵）

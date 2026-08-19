@@ -4,33 +4,30 @@
 
 ## 專案是什麼
 
-為 Matters 自動編製「周報／雙周報」**草稿**的小工具。只讀取 Matters 公開 GraphQL
+為 Matters 自動編製「周報」**草稿**的小工具。只讀取 Matters 公開 GraphQL
 API，把多篇文章整理成**一張草稿**（含 @作者提及與文章連結），放進指定帳戶的草稿箱。
 
 - **自動發佈**（2026-07-08 起啟用）：組好草稿後直接發佈到公開站。由 `--publish`／`PUBLISH`
-  控制（**程式預設關閉**，週報／雙週報 workflow 已開啟）；手動觸發可設 `publish=false` 只存草稿供檢視。
+  控制（**程式預設關閉**，週報 workflow 已開啟）；手動觸發可設 `publish=false` 只存草稿供檢視。
 - 與 `repost-bot` 是**兩個獨立專案**，互不相干，不共用程式碼。
 - 不爬外部網站，只打 Matters 自家 API。
 
-## 兩種模式（`python -m bot.digest --type ...`）
+## 一種模式（`python -m bot.digest --type ...`）
 
 | 模式 | 內容 | 排程（HKT） | Workflow |
 |------|------|------|------|
 | `weekly` | 合併七個頻道、過去 7 日文章，按「拍手＋留言」排序取前 10，每作者≤2 篇，tag 作者 | 每週三上午 | `digest-weekly.yml` |
-| `biweekly` | 同 weekly 邏輯，僅時窗改過去 14 日，取全站互動最高前 10，tag 作者 | 隔週三上午（與週報同日、錯開）| `digest-biweekly.yml` |
 
-> **2026-07 簡化**：原本雙週報的「頻道置頂精選」欄目、以及支撐它的每日 `snapshot` 快照
+> **歷史註記（2026-07 移除）**：先前曾有「頻道置頂精選」欄目、以及支撐它的每日 `snapshot` 快照
 > （`digest-snapshot.yml`、`state/channel_pins.json`）**已全部移除**——因負責置頂的編輯離任、不再 pin 文。
-> 雙週報現與週報同樣是「純社群互動熱門」，只差時窗（14 日 vs 7 日）。
 
 cron 以 UTC 計。因 GitHub 排程常延遲甚至丟棄整點附近的 run，
-**週報／雙週報各在週三上午排「3 次錯開嘗試」（1 小時一次）**：週報 01:00／02:00／03:00 UTC
-（09:00／10:00／11:00 HKT）；雙週報 01:30／02:30／03:30 UTC（09:30／10:30／11:30 HKT，與週報錯開 30 分）。
+**週報在週三上午排「3 次錯開嘗試」（1 小時一次）**：01:00／02:00／03:00 UTC
+（09:00／10:00／11:00 HKT）。
 第一次成功後，其餘因「本日已發」自動跳過 → 最晚中午前一定出、且不重複。
-成功發佈後在 `state/published-weekly.json`／`published-biweekly.json`（各記各檔，避免同時跑爭寫）記下當日 HKT 日期，備用時段見「本日已發同類」即跳過，
+成功發佈後在 `state/published-weekly.json` 記下當日 HKT 日期，備用時段見「本日已發」即跳過，
 確保每次只出一份（防重複）。手動 `workflow_dispatch`（或 CLI `--force`）會**繞過**此防重複，供刻意重推；
-排程的主／備不帶 `--force`，仍照常防重複。雙週報 cron 設「每週三」，compose 步驟再以
-「距錨點 `2026-07-08` 為 **14 天倍數**」閘住 → 每隔一個週三出刊（7/22、8/5、8/19…），與週報同日。
+排程的主／備不帶 `--force`，仍照常防重複。
 
 ## 架構（`bot/`）
 
@@ -64,8 +61,8 @@ cron 以 UTC 計。因 GitHub 排程常延遲甚至丟棄整點附近的 run，
 3. **host 白名單**（`ALLOWED_API_HOSTS`）：read/write 只接受
    `server.matters.news / .town / .icu`，打錯網址直接中止，避免把帳號憑證送到未知伺服器。
 
-4. **封面圖（撕貼卡片拼貼）**：周報／雙周報自動生成**拼貼**封面（渲染 `collage.py`、抽字 `cover.py`），
-   掛上草稿封面（`cover`）＋內文首圖（`embed`）。週報用 `riso`（孔版紅藍）、雙周報用 `coral`。關鍵字一律
+4. **封面圖（撕貼卡片拼貼）**：週報自動生成**拼貼**封面（渲染 `collage.py`、抽字 `cover.py`），
+   掛上草稿封面（`cover`）＋內文首圖（`embed`）。週報用 `riso`（孔版紅藍）主題。關鍵字一律
    **繁體**（zhconv，避免簡體缺字成豆腐）＋ TF-IDF 抽顯著詞（避免破碎語意）＋ fonttools 缺字檢查（丟棄渲染不出的詞）。
    **設計鎖定，改動前先讀 `docs/封面設計說明.md`**。**上傳兩個坑**：`singleFileUpload`（multipart）要加 header
    `apollo-require-preflight: true`；內文 `<figure class="image">` 內**必須有 `<figcaption>`** 否則 putDraft 崩。
@@ -76,11 +73,11 @@ cron 以 UTC 計。因 GitHub 排程常延遲甚至丟棄整點附近的 run，
 
 ## 慣例
 
-- **頻道清單**改 `bot/digest.py` 的 `WEEKLY_CHANNELS`（週報與雙週報共用的七個頻道，含「創作・小說」）。
+- **頻道清單**改 `bot/digest.py` 的 `WEEKLY_CHANNELS`（週報用的七個頻道，含「創作・小說」）。
   頻道 id 為 base64 GraphQL node id，註解附解碼值。
 - **時間一律 UTC**；日期字串用 ISO `YYYY-MM-DD`。
-- **狀態檔** `state/published-weekly.json`／`published-biweekly.json`（防重複標記，各記當日 HKT 日期）
-  由週報／雙週報 workflow 自動 commit 回倉庫（`permissions: contents: write` + 失敗重試 rebase）。
+- **狀態檔** `state/published-weekly.json`（防重複標記，記當日 HKT 日期）
+  由週報 workflow 自動 commit 回倉庫（`permissions: contents: write` + 失敗重試 rebase）。
 - **憑證**：雲端跑用 GitHub repo secrets（`DIGEST_MATTERS_EMAIL/PASSWORD`；icu 測試用
   `ICU_MATTERS_EMAIL/PASSWORD`），**不要**進 `.env`。本機跑才用 `.env`（已 gitignore）。
 - **依賴**：`requests`（API）＋封面圖用的 `Pillow`/`jieba`/`zhconv`/`fonttools`（見
@@ -92,7 +89,6 @@ cron 以 UTC 計。因 GitHub 排程常延遲甚至丟棄整點附近的 run，
 ```bash
 pip install -r requirements.txt
 python -m bot.digest --type weekly --dry-run     # 只印不發
-python -m bot.digest --type biweekly --dry-run
 
 # 讀正式站、把草稿貼到 icu：
 MATTERS_WRITE_ENDPOINT=https://server.matters.icu/graphql \
